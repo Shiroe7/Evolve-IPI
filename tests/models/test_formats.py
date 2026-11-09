@@ -73,9 +73,14 @@ def test_get_formatter_takes_a_family_and_nothing_else(name: Any) -> None:
 
 
 def test_the_families_are_the_ones_the_configuration_allows(configs_dir: Path) -> None:
-    assert set(get_args(ModelSpec.model_fields["family"].annotation)) == set(get_args(Family)) == set(FAMILIES)
+    configured = set(get_args(ModelSpec.model_fields["family"].annotation))
+    assert configured == set(get_args(Family)) | {"openai_compat"}
+    assert set(get_args(Family)) == set(FAMILIES)
     for spec in load_configs(configs_dir).models.values():
+        assert spec.provider == "tinker"
         assert isinstance(get_formatter(spec.family), Formatter)
+    with pytest.raises(ValueError):
+        get_formatter("openai_compat")  # native JSON calls deliberately have no family tokenizer/parser
 
 
 @pytest.mark.parametrize(

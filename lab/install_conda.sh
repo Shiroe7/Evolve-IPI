@@ -23,6 +23,8 @@ fi
 if test ! -x "$meta_env/bin/python"; then
     "$conda_bin" create -y --offline --prefix "$meta_env" --clone "$main_env"
 fi
+# The standalone MetaClaw scripts must not inherit the main package's incompatible Tinker pin.
+"$meta_env/bin/python" -m pip uninstall -y evolve-ipi
 "$meta_env/bin/python" -m pip install --index-url https://mirrors.aliyun.com/pypi/simple \
     --no-deps -r "$source_root/docker/requirements-metaclaw.txt"
 "$meta_env/bin/python" -m pip install --index-url https://mirrors.aliyun.com/pypi/simple \

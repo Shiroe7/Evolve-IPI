@@ -159,7 +159,8 @@ def read_key(path):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--key-file", type=Path, required=True)
+    parser.add_argument("--key-file", type=Path)
+    parser.add_argument("--offline", action="store_true", help="Reject all model work without reading a key or accessing a network")
     parser.add_argument("--socket", type=Path, required=True)
     parser.add_argument("--ledger", type=Path, required=True)
     parser.add_argument("--max-calls", type=int, default=60)
@@ -168,7 +169,11 @@ def main():
         parser.error("Use a positive cap and a fresh, dedicated socket path")
     os.umask(0o077)
     args.socket.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    broker = Broker(read_key(args.key_file), args.ledger, max_calls=args.max_calls)
+    if not args.offline and args.key_file is None:
+        parser.error("--key-file is required unless --offline")
+    transport = httpx.MockTransport(lambda _: httpx.Response(503, json={"error": "offline"})) if args.offline else None
+    broker = Broker("offline-dummy" if args.offline else read_key(args.key_file), args.ledger,
+                    max_calls=args.max_calls, transport=transport)
     uvicorn.run(app_for(broker), uds=str(args.socket), access_log=False, log_level="warning")
 
 
