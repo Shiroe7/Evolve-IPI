@@ -51,3 +51,6 @@ Run under tmux and a systemd user scope (2 CPUs, 4 GiB memory, 256 tasks):
 Inspect the complete first-root chain and prediction boundary before expanding --units to 9.
 Successful completed roots are reused as evidence, not sampled again as new users. Partial or
 invalid state refuses silent retry and needs a live-process audit/new explicit experiment ID.
+When using a new checkout, clone the existing MetaClaw Conda environment to envs/pilot-metaclaw
+and relink only that clone to this checkout's submodule. The original deployment/environment
+remains available. The main environment is reused read-only with this checkout on PYTHONPATH.

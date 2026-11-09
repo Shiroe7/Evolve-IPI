@@ -61,7 +61,7 @@ class Campaign:
         self.task = task_root
         self.root = root
         self.python = task_root / "envs/main/bin/python"
-        self.meta = task_root / "envs/metaclaw/bin/python"
+        self.meta = task_root / "envs/pilot-metaclaw/bin/python"
         self.node = task_root / "node-v22.23.2-linux-arm64"
         self.data = Path("/data") / os.environ["USER"] / "evolve-ipi/20261109/data"
         self.env = {"PATH": str(self.node / "bin") + ":/usr/bin:/bin", "HOME": str(Path.home()),
@@ -246,7 +246,9 @@ def main():
     args = parser.parse_args()
     campaign = Campaign(args.task_root.resolve(), args.campaign.resolve())
     for unit, condition, replicate in ASSIGNMENTS[:args.units]:
-        campaign.unit(unit, condition, replicate)
+        record = campaign.unit(unit, condition, replicate)
+        if unit == "p01" and (not all(x["valid"] for x in record["websites"] + record["risks"])):
+            raise RuntimeError("The first complete instance must validate before expanding")
         if len(campaign.failures) >= 2:
             raise RuntimeError("Campaign stopped after two failed stages; no automatic retry")
     print(json.dumps({"status": "complete_for_requested_units", "units": args.units, "failed_stages": campaign.failures}), flush=True)
