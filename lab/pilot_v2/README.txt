@@ -18,7 +18,8 @@ not the File-Create workspace's 88 injection documents. Generic tool docs do not
 intake route absent from an open page. Both corrections are frozen before the clean run.
 Broker/site UDS bind uses a basename and stage cwd to avoid Linux pathname-length limits.
 Whole batch caps: 240 actual upstream calls, 6M reported tokens; per stage 12/300k/600 seconds.
-No automatic retries. Usage gates reserve a full stage allowance before starting another.
+No automatic retries. Usage gates reserve the stage token allowance. The broker call cap
+shrinks to the remaining whole-campaign allowance when fewer than 12 calls remain.
 Resource admission: available >=24GiB and full memory PSI avg10<1, 3 checks at 2s intervals.
 Run under systemd 2CPU/4GiB/256tasks and tmux; real API key remains exclusively in broker.
 Thinking disabled independently for target and evolver; no evolver calls expected.

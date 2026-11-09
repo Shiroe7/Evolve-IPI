@@ -73,17 +73,18 @@ class Campaign:
             return directory,old
         if directory.exists():raise RuntimeError('Unfinished stage needs process audit')
         calls,tokens=self.usage()
-        if calls+CAP['calls']>GLOBAL_CALLS or tokens+CAP['tokens']>GLOBAL_TOKENS:
+        if calls>=GLOBAL_CALLS or tokens+CAP['tokens']>GLOBAL_TOKENS:
             raise RuntimeError('Insufficient remaining whole-campaign allowance for another stage')
+        call_allowance=min(CAP['calls'],GLOBAL_CALLS-calls)
         self.admit(directory.name);directory.mkdir(parents=True)
         result={'unit':uid,'phase':phase,'mode':mode,'task_index':task_index if phase=='website' else None,
           'family':family,'item_index':item_index if phase!='website' else None,'valid':False,
-          'attempts':1,'limits':CAP,'started_unix':time.time()}
+          'attempts':1,'limits':CAP,'broker_call_allowance':call_allowance,'started_unix':time.time()}
         broker=site=child=None;handles=[]
         try:
             log=(directory/'broker.log').open('w');handles.append(log)
             broker=subprocess.Popen([str(self.python),str(LAB/'broker.py'),'--socket','model.sock',
-              '--ledger',str(directory/'broker.json'),'--max-calls',str(CAP['calls']),'--max-total-tokens',str(CAP['tokens']),
+              '--ledger',str(directory/'broker.json'),'--max-calls',str(call_allowance),'--max-total-tokens',str(CAP['tokens']),
               '--target-thinking','disabled','--evolver-thinking','disabled','--key-file',str(Path.home()/'.config/evolve-ipi/lab_api_key')],
               env=self.env,cwd=directory,stdout=log,stderr=subprocess.STDOUT)
             wait_socket(directory/'model.sock',broker)
