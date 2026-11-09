@@ -13,6 +13,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated, Any, Literal, get_args
+from urllib.parse import urlsplit
 
 import yaml
 from pydantic import (
@@ -55,14 +56,52 @@ class _Spec(BaseModel):
 # --- the specs that configs/*.yaml are read into ---------------------------------------------
 
 
+class CompatSpec(_Spec):
+    """Native chat-completions transport; endpoint settings are recorded with each run."""
+
+    base_url: str
+    model: Annotated[str, Field(min_length=1)]
+    timeout_s: PositiveFloat
+    max_output_tokens: PositiveInt
+    max_requests: PositiveInt
+    max_total_tokens: PositiveInt
+
+    @field_validator("base_url")
+    @classmethod
+    def _endpoint(cls, value: str) -> str:
+        parsed = urlsplit(value)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+            raise ValueError("base_url must be an http(s) endpoint without credentials")
+        if parsed.query or parsed.fragment:
+            raise ValueError("base_url must not contain a query or fragment")
+        return value.rstrip("/")
+
+
 class _ModelEntry(_Spec):
     """One model as written in ``models.yaml``; its name is the key it is filed under."""
 
-    tinker_id: Annotated[str, Field(min_length=1)]
-    family: Literal["qwen", "harmony", "inkling"]
+    tinker_id: Annotated[str, Field(min_length=1)] | None = None
+    family: Literal["qwen", "harmony", "inkling", "openai_compat"]
+    provider: Literal["tinker", "openai_compat"] = "tinker"
+    compat: CompatSpec | None = None
     skill_served_name: Annotated[str, Field(min_length=1)]
     mechanisms: Annotated[tuple[Mechanism, ...], Field(min_length=1)]
     skill_train_retries: NonNegativeInt
+
+    @model_validator(mode="after")
+    def _backend(self) -> _ModelEntry:
+        if self.provider == "tinker":
+            if not self.tinker_id or self.family == "openai_compat" or self.compat is not None:
+                raise ValueError("Tinker needs tinker_id and a native model family, without compat settings")
+        elif self.family != "openai_compat" or self.compat is None or self.tinker_id is not None:
+            raise ValueError("openai_compat needs family=openai_compat and compat settings, without tinker_id")
+        elif self.mechanisms != ("skills",):
+            raise ValueError("openai_compat supports skills only; RL is unavailable")
+        return self
+
+    @property
+    def sampling_model(self) -> str:
+        return self.compat.model if self.compat is not None else str(self.tinker_id)
 
 
 class ModelSpec(_ModelEntry):
@@ -333,6 +372,7 @@ _SECRET_ENV = {
     "evolver_api_key": "EVOLVER_API_KEY",
     "evolver_model": "EVOLVER_MODEL",
     "hf_token": "HF_TOKEN",
+    "target_api_key": "TARGET_API_KEY",
 }
 
 
@@ -345,6 +385,7 @@ class Secrets:
     evolver_api_key: str | None = field(default=None, repr=False)
     evolver_model: str | None = None
     hf_token: str | None = field(default=None, repr=False)
+    target_api_key: str | None = field(default=None, repr=False)
 
 
 _ENV_KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")

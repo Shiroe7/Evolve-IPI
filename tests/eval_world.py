@@ -240,6 +240,7 @@ class World:
         env: dict[str, str],
         *,
         temperature: float,
+        compat: Any = None,
     ) -> FakeProcess:
         self.attempt += 1
         self._requests = 0

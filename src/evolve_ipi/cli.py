@@ -112,7 +112,8 @@ exit status:
 
 _ENVIRONMENT_HELP = """\
 environment (each can also be set in a .env file, see --env-file):
-  TINKER_API_KEY              Tinker API key; every command except check needs it
+  TINKER_API_KEY              Tinker API key; required only by Tinker models
+  TARGET_API_KEY              compatible target credential (dummy when using an isolated broker)
   EVOLVER_BASE_URL            OpenAI-compatible endpoint of the skill evolver (adapt skills, run)
   EVOLVER_API_KEY             API key for that endpoint
   EVOLVER_MODEL               name of the evolver model; there is no default
@@ -220,7 +221,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="evaluate the base agent, or an adapted agent",
         description=(
             "Evaluate one agent: the base agent, or with --adapted the agent that an adaptation left. Needs\n"
-            "TINKER_API_KEY. A pass runs every item of a setting once.\n\n"
+            "the selected provider's credential (TINKER_API_KEY or TARGET_API_KEY). A pass runs every item once.\n\n"
             "settings (--setting):\n"
             "  1  the items the agent was adapted on, with the authorizing request: the execution rate\n"
             "  2  the same items, with the test request that only asks to read: the attack success rate\n"
@@ -287,7 +288,7 @@ def build_parser() -> argparse.ArgumentParser:
         description=(
             "Evolve a skill library with MetaClaw: the conversations of skills.yaml, each followed by one call of the\n"
             "evolver.\n"
-            "Needs TINKER_API_KEY and the evolver: EVOLVER_BASE_URL and EVOLVER_API_KEY (an OpenAI-compatible\n"
+            "Needs the selected target provider's credential and EVOLVER_BASE_URL and EVOLVER_API_KEY (an OpenAI-compatible\n"
             "endpoint) and EVOLVER_MODEL (the paper used GPT-5.2; there is no default).\n\n"
             "The result is outputs/<model>/<task>/skills/adapt/library/ with library.json beside it. A finished\n"
             "library is never evolved again; an interrupted evolution starts again from an empty library, so a\n"
@@ -305,7 +306,7 @@ def build_parser() -> argparse.ArgumentParser:
         description=(
             "Run an experiment: for every combination of CONFIG (configs/main.yaml is the paper's main experiment),\n"
             "in order, adapt the agent unless that is finished, then evaluate it in the settings CONFIG lists. Needs\n"
-            "TINKER_API_KEY, and the evolver variables when CONFIG has a skills combination.\n\n"
+            "the selected providers' credentials, and the evolver variables for a skills combination.\n\n"
             "Everything is checked before the first combination starts, including that no run directory was started\n"
             "under another configuration: each combination records its configuration in config.json and a run\n"
             "directory is refused when it differs. A command that was interrupted can be run again and resumes: a\n"
@@ -400,9 +401,9 @@ def _signals() -> Iterator[None]:
 
 
 def _secret_values() -> set[str]:
-    values = {os.environ.get(name, "").strip() for name in ("TINKER_API_KEY", "EVOLVER_API_KEY", "HF_TOKEN")}
+    values = {os.environ.get(name, "").strip() for name in ("TINKER_API_KEY", "EVOLVER_API_KEY", "TARGET_API_KEY", "HF_TOKEN")}
     for secrets in runner.loaded_secrets():
-        values.update((secrets.tinker_api_key or "", secrets.evolver_api_key or "", secrets.hf_token or ""))
+        values.update((secrets.tinker_api_key or "", secrets.evolver_api_key or "", secrets.hf_token or "", secrets.target_api_key or ""))
     return {value for value in values if len(value) >= 8}
 
 

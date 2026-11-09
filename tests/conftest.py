@@ -13,6 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # A test must never reach a paid service with a developer's real credentials. A test that needs
 # one of these sets a fake value itself.
 SECRET_ENV_VARS = (
+    "TARGET_API_KEY",
     "TINKER_API_KEY",
     "EVOLVER_BASE_URL",
     "EVOLVER_API_KEY",

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from evolve_ipi.models.formats import Family
+from evolve_ipi.config import CompatSpec
 from evolve_ipi.procs import ManagedProcess, require_free
 
 HOST = "127.0.0.1"
@@ -42,7 +43,7 @@ def server_files(out_dir: Path) -> ServerFiles:
 
 
 def start_model_server(
-    family: Family,
+    family: Family | str,
     base_model: str,
     served_name: str,
     port: int,
@@ -51,6 +52,7 @@ def start_model_server(
     env: Mapping[str, str],
     *,
     temperature: float,
+    compat: CompatSpec | None = None,
 ) -> ManagedProcess:
     """Start ``python -m evolve_ipi.models.server`` for one model and wait until it serves on ``port``.
 
@@ -75,12 +77,22 @@ def start_model_server(
         "--record-dir", str(files.records),
         "--host", HOST,
     ]  # fmt: skip
+    if compat is not None:
+        if checkpoint is not None:
+            raise ValueError("OpenAI compatible sampling cannot load a Tinker checkpoint")
+        argv[2] = "evolve_ipi.models.compat"
+        argv += ["--base-url", compat.base_url, "--timeout-s", str(compat.timeout_s),
+                 "--max-output-tokens", str(compat.max_output_tokens),
+                 "--max-requests", str(compat.max_requests), "--max-total-tokens", str(compat.max_total_tokens)]
     if checkpoint is not None:
         argv += ["--load-checkpoint", checkpoint]
     process = ManagedProcess("model server", argv, {**env, "PYTHONUNBUFFERED": "1"}, files.log)
     process.start()
     try:
-        process.wait_for_line(ready_line(HOST, port, base_model, checkpoint), READY_TIMEOUT_S)
+        expected = ready_line(HOST, port, base_model, checkpoint)
+        if compat is not None:
+            expected = expected.replace("(thinking ON)", "(native OpenAI)")
+        process.wait_for_line(expected, READY_TIMEOUT_S)
         process.wait_for_port(port, PORT_TIMEOUT_S)
     except BaseException:
         process.stop()

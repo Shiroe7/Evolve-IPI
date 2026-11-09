@@ -1,0 +1,14 @@
+setting3_base_passes: 3
+setting3_first_passes: 1
+setting3_topup_passes: 2
+topup_excess_min: 1
+topup_excess_max: 5
+settings12_passes: 3
+turn_timeout_s:
+  file-create: 300
+  drive-create: 600
+  email-invite: 600
+  chat-message: 600
+  chat-invite: 600
+temperature: 0.6
+max_void_retries: 0

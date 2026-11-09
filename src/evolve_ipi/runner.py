@@ -319,8 +319,11 @@ def ports_needed(ports: PortsSpec, combos: Sequence[Combo]) -> list[int]:
     return needed
 
 
-def _secret_fields(combos: Sequence[Combo], adapting: bool) -> tuple[str, ...]:
-    fields = ["tinker_api_key"]
+def _secret_fields(combos: Sequence[Combo], adapting: bool, cfgs: Configs | None = None) -> tuple[str, ...]:
+    providers = {cfgs.models[c.model].provider for c in combos} if cfgs is not None else {"tinker"}
+    fields = ["tinker_api_key"] if "tinker" in providers else []
+    if "openai_compat" in providers:
+        fields.append("target_api_key")
     if adapting and any(combo.mechanism == "skills" for combo in combos):
         fields += _EVOLVER_SECRETS  # the evolver writes the skills; evaluating a finished library never calls it
     return tuple(fields)
@@ -348,7 +351,7 @@ def startup(
     paths = paths if paths is not None else RuntimePaths()
     _image_guards(results if results is not None else paths.outputs)
     _check_port_config(cfgs.ports)
-    secrets = load_secrets(_secret_fields(combos, adapting), env_file=env_file)
+    secrets = load_secrets(_secret_fields(combos, adapting, cfgs), env_file=env_file)
     _LOADED.append(secrets)
     data_sums = verify_data()
     tasks = {name: load_task(name) for name in dict.fromkeys(combo.task for combo in combos)}

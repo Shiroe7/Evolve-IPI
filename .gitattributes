@@ -4,3 +4,4 @@ src/evolve_ipi/environment/workspace_files/* -text
 data/** -text
 third_party/patches/* -text
 docker/entrypoint.sh -text
+lab/*.sh text eol=lf

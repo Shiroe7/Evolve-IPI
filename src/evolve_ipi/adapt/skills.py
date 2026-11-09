@@ -93,6 +93,7 @@ EVOLVER_PREFLIGHT_TIMEOUT_S = 900
 GUARDS = ("no-turn-drop", "saw-conversation")
 _VOID = "_void"
 _SECRET_NAMES = {
+    "target_api_key": "TARGET_API_KEY",
     "tinker_api_key": "TINKER_API_KEY",
     "evolver_base_url": "EVOLVER_BASE_URL",
     "evolver_api_key": "EVOLVER_API_KEY",
@@ -150,7 +151,7 @@ def drain(
 # --- the proxy ---------------------------------------------------------------------------------------
 
 
-def close_session(proxy_port: int, served_name: str, session_id: str) -> None:
+def close_session(proxy_port: int, served_name: str, session_id: str, *, max_tokens: int = 1) -> None:
     """End the agent's session ``session_id`` at the proxy, which then evolves on the session's turns.
 
     The request is a side turn, so MetaClaw does not buffer it as a turn of the conversation; it still forwards it to
@@ -160,7 +161,7 @@ def close_session(proxy_port: int, served_name: str, session_id: str) -> None:
         raise ValueError("refusing to close an empty session id: the agent's reply carried none")
     response = httpx.post(
         f"http://{HOST}:{proxy_port}/v1/chat/completions",
-        json={"model": served_name, "messages": [{"role": "user", "content": "done"}], "max_tokens": 1},
+        json={"model": served_name, "messages": [{"role": "user", "content": "done"}], "max_tokens": max_tokens},
         headers={"X-Session-Id": session_id, "X-Turn-Type": "side", "X-Session-Done": "true"},
         timeout=CLOSE_TIMEOUT_S,
         trust_env=False,  # a local call: never through a proxy of the environment
@@ -382,10 +383,13 @@ def _require_running(*processes: ManagedProcess) -> None:
 # --- one evolution -----------------------------------------------------------------------------------
 
 
-def _closure(history: Path, proxy_port: int, served_name: str) -> Closure:
+def _closure(history: Path, proxy_port: int, served_name: str, *, max_tokens: int = 1) -> Closure:
     def close(session_id: str) -> dict[str, Any]:
         before = history_lines(history)
-        close_session(proxy_port, served_name, session_id)
+        if max_tokens == 1:
+            close_session(proxy_port, served_name, session_id)
+        else:
+            close_session(proxy_port, served_name, session_id, max_tokens=max_tokens)
         return {"at": now(), "history_before": before}
 
     return close
@@ -422,7 +426,8 @@ def _evolve(
     spec = cfgs.skills
     ctx = prepare_environment(task, "skills", paths, cfgs.ports, cfgs.ports.proxy, cfgs.eval.turn_timeout_s[task.name])
     policy = policy_for("skills", task.kind, model)
-    close = _closure(history, cfgs.ports.proxy, model.skill_served_name)
+    close = _closure(history, cfgs.ports.proxy, model.skill_served_name,
+                     max_tokens=model.compat.max_output_tokens if model.compat is not None else 1)
     library.mkdir(parents=True)
     paths.service_home.mkdir(parents=True, exist_ok=True)
     paths.hf_home.mkdir(parents=True, exist_ok=True)
@@ -437,13 +442,14 @@ def _evolve(
         with starting("model server"):
             server = start_model_server(
                 model.family,
-                model.tinker_id,
+                model.sampling_model,
                 model.skill_served_name,
                 cfgs.ports.model,
                 server_dir,
                 None,
-                model_server_env(paths, secrets),
+                model_server_env(paths, secrets, model) if model.provider != "tinker" else model_server_env(paths, secrets),
                 temperature=cfgs.eval.temperature,
+                **({"compat": model.compat} if model.provider == "openai_compat" else {}),
             )
             started.append(server)
         with starting("proxy"):
@@ -484,6 +490,11 @@ def _evolve(
     if count != spec.conversations:
         raise AdaptAbort(f"{spec.conversations} conversations were closed but {count} evolutions landed in {history}")
     run_guards(history, proxy_dir / "conversations.jsonl", adapt / "guards", paths=paths)
+    if model.provider == "openai_compat":
+        from evolve_ipi.models.compat import audit_evidence
+        problems = audit_evidence(server_files(server_dir).evidence)
+        if problems:
+            raise AdaptAbort("compatible target evidence invalid: " + "; ".join(problems))
     if model.family == "inkling":
         _inkling_audit(server_files(server_dir).raw, adapt / "raw_audit.json")
     events = [json.loads(line) for line in history.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -602,7 +613,8 @@ def check_inputs(model: ModelSpec, cfgs: Configs, secrets: Secrets, paths: Runti
             f"model {model.name} does not take part in skill evolution; models.yaml gives it the mechanisms "
             f"{', '.join(model.mechanisms)}"
         )
-    _require_secrets(secrets, tuple(_SECRET_NAMES), "skill evolution")
+    target = "target_api_key" if model.provider == "openai_compat" else "tinker_api_key"
+    _require_secrets(secrets, (target, *_EVOLVER_SECRETS), "skill evolution")
     metaclaw_python(paths)
     verify_patches()
     if model.family == "inkling":

@@ -1,0 +1,10 @@
+conversations: 12
+max_new_skills: 3
+evolver_max_completion_tokens: 3000
+skill_top_k: 6
+task_specific_top_k: 10
+evolution_every_n_turns: 1000
+drain_poll_s: 3
+drain_stable_polls: 5
+drain_max_polls: 300
+max_restarts: 0

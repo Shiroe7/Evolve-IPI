@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Protocol
 
 from evolve_ipi.agent.openclaw import OpenClawError
-from evolve_ipi.config import ConfigError, Secrets
+from evolve_ipi.config import ConfigError, ModelSpec, Secrets
 from evolve_ipi.paths import RuntimePaths
 from evolve_ipi.procs import ProcessError
 
@@ -90,9 +90,15 @@ def _on_tinker(paths: RuntimePaths, secrets: Secrets, what: str) -> dict[str, st
     return env
 
 
-def model_server_env(paths: RuntimePaths, secrets: Secrets) -> dict[str, str]:
+def model_server_env(paths: RuntimePaths, secrets: Secrets, model: ModelSpec | None = None) -> dict[str, str]:
     """The model server's whole environment: Tinker's key, a home of its own, Hugging Face's cache (and token, when one
     is set). Nothing of the evolver."""
+    if model is not None and model.provider == "openai_compat":
+        if not secrets.target_api_key:
+            raise ConfigError("TARGET_API_KEY is required for the compatible target provider")
+        env = _inherited(pythonpath=True)
+        env.update(HOME=str(paths.service_home), TARGET_API_KEY=secrets.target_api_key)
+        return env
     return _on_tinker(paths, secrets, "the model server samples every model")
 
 

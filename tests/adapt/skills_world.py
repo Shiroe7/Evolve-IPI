@@ -189,6 +189,7 @@ class World:
         env: Mapping[str, str],
         *,
         temperature: float,
+        compat: Any = None,
     ) -> FakeProcess:
         assert not out_dir.exists(), "every model server start gets a fresh directory"
         self.calls.append(("start", "model server"))

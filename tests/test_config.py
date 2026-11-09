@@ -173,6 +173,7 @@ def test_main_has_35_combos(configs_dir: Path) -> None:
 
 def test_env_example_lists_every_secret(repo_root: Path) -> None:
     assert parse_env_file(repo_root / ".env.example") == {
+        "TARGET_API_KEY": "",
         "TINKER_API_KEY": "",
         "EVOLVER_BASE_URL": "",
         "EVOLVER_API_KEY": "",

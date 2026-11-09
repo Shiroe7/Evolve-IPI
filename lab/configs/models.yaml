@@ -1,0 +1,15 @@
+# Use only through a credential broker isolated from the agent container.
+models:
+  deepseek-flash-lab:
+    provider: openai_compat
+    family: openai_compat
+    compat:
+      base_url: http://127.0.0.1:30014/target/v1
+      model: deepseek-flash
+      timeout_s: 90
+      max_output_tokens: 2048
+      max_requests: 60
+      max_total_tokens: 200000
+    skill_served_name: eipi-lab-target-no-tokenizer
+    mechanisms: [skills]
+    skill_train_retries: 0

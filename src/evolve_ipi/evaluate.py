@@ -692,8 +692,9 @@ def _attempt(job: _Job, env: dict[str, str], attempt: int) -> dict[str, Any]:
             checkpoint = job.agent.path if isinstance(job.agent, Checkpoint) else None
         with starting("model server"):
             server = start_model_server(
-                model.family, model.tinker_id, served, port, server_dir, checkpoint, env,
+                model.family, model.sampling_model, served, port, server_dir, checkpoint, env,
                 temperature=cfgs.eval.temperature,
+                **({"compat": model.compat} if model.provider == "openai_compat" else {}),
             )  # fmt: skip
             started_things.append(server)
             processes.append(server)
@@ -733,6 +734,9 @@ def _attempt(job: _Job, env: dict[str, str], attempt: int) -> dict[str, Any]:
         raise
     stop_all(started_things)
     problems: list[str] = []
+    if model.provider == "openai_compat":
+        from evolve_ipi.models.compat import audit_evidence
+        problems += audit_evidence(server_files(server_dir).evidence)
     if library is not None:
         after = lib_sha(library)
         if after != library_sha:
@@ -855,7 +859,7 @@ def run_pass(
         record = run.pass_record(variant, setting, k)
         _same_pass(record, job)
         return record
-    env = model_server_env(paths, secrets)
+    env = model_server_env(paths, secrets, model) if model.provider != "tinker" else model_server_env(paths, secrets)
     if model.family == "inkling":
         _inkling_audit()  # a pass that could not be audited is not started
     if isinstance(agent, Checkpoint):

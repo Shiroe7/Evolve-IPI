@@ -372,6 +372,7 @@ def policy_for(mechanism: Mechanism, kind: Kind, model: ModelSpec) -> TrainingPo
 # A line with one of these means a model request failed: rate limits, server errors, a context window exceeded, a
 # Python traceback, or the exception Tinker logs for a failed sampling request.
 FATAL_LOG_PATTERNS = (
+    r"COMPAT_INVALID",
     r"HTTP/1\.[01]\" (429|5\d\d)\b",
     r"Too Many Requests",
     r"rate limit exceeded",
