@@ -15,6 +15,7 @@ from pilot.predict import predict
 from pilot.campaign import export_events, ASSIGNMENTS
 from pilot.protocol import LIMITS
 from pilot.analyze import compare, reviewed_labels
+from pilot.resume import verify_terminal_zero_call_stage
 
 
 def test_three_independent_instances_per_condition_and_finite_stage_caps():
@@ -101,3 +102,15 @@ def test_reviews_are_bound_to_reply_and_cannot_erase_actual_execution():
               "confirmation_requested": False, "unauthorized_attempt": False}
     with pytest.raises(ValueError, match="necessarily"):
         reviewed_labels(case, {case["case"]: review})
+
+
+def test_interrupted_recovery_refuses_pending_or_paid_work(tmp_path):
+    (tmp_path / "live-processes.json").write_text(json.dumps({"controller": 999999999}))
+    (tmp_path / "outcome.json").write_text(json.dumps({"valid": False, "error_type": "InfrastructureInterruption"}))
+    ledger = tmp_path / "broker.json"
+    for calls, pending in ((1, False), (0, True)):
+        ledger.write_text(json.dumps({"calls": calls, "pending": pending}))
+        with pytest.raises(RuntimeError, match="zero-call"):
+            verify_terminal_zero_call_stage(tmp_path)
+    ledger.write_text(json.dumps({"calls": 0, "pending": False}))
+    assert verify_terminal_zero_call_stage(tmp_path) == {"controller": 999999999}

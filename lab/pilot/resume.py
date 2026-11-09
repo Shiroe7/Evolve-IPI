@@ -42,6 +42,19 @@ def admit(root, name):
     raise RuntimeError("Resource admission unavailable for ten minutes; no model call started")
 
 
+def verify_terminal_zero_call_stage(original):
+    pids = json.loads((original / "live-processes.json").read_text())
+    if any(Path(f"/proc/{pid}").exists() for pid in pids.values() if pid):
+        raise RuntimeError("An original process still exists; observation expiry does not justify restart")
+    ledger = json.loads((original / "broker.json").read_text())
+    if ledger["calls"] or ledger["pending"]:
+        raise RuntimeError("This recovery was authorized only for the verified zero-call interruption")
+    invalid = json.loads((original / "outcome.json").read_text())
+    if invalid["valid"] or invalid["error_type"] != "InfrastructureInterruption":
+        raise RuntimeError("Only the audited infrastructure interruption may be recovered")
+    return pids
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--task-root", type=Path, required=True)
@@ -60,15 +73,7 @@ def main():
     audit = json.loads((root / "interruption-audit.json").read_text())
     if not audit["all_recorded_processes_gone"]:
         raise RuntimeError("A positive terminal-process audit is required")
-    pids = json.loads((original / "live-processes.json").read_text())
-    if any(Path(f"/proc/{pid}").exists() for pid in pids.values() if pid):
-        raise RuntimeError("An original process still exists; observation expiry does not justify restart")
-    ledger = json.loads((original / "broker.json").read_text())
-    if ledger["calls"] or ledger["pending"]:
-        raise RuntimeError("This recovery was authorized only for the verified zero-call interruption")
-    invalid = json.loads((original / "outcome.json").read_text())
-    if invalid["valid"] or invalid["error_type"] != "InfrastructureInterruption":
-        raise RuntimeError("Only the audited infrastructure interruption may be recovered")
+    pids = verify_terminal_zero_call_stage(original)
 
     class AdmittedCampaign(Campaign):
         def stage(self, unit, phase, **kwargs):
@@ -103,6 +108,8 @@ def main():
     observations, websites = [], []
     for variant in ("static", "interactive"):
         stage, outcome = c.stage(unit, "website", variant=variant, seed=seed)
+        if not outcome["valid"]:
+            raise RuntimeError("The sole replacement attempt failed; no further automatic model work")
         observations.append({"variant": variant, "events": export_events(stage / "website-events.jsonl")})
         websites.append(outcome)
     prediction = c.predict_blind(unit, observations)
