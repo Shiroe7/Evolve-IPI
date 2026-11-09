@@ -41,6 +41,11 @@ Differences requiring reporting:
 - Native structured tools and API usage replace HF tokenizer/family templates/raw sampling tokens.
 - Target max_tokens is capped at 2048; evolver retains its native max_completion_tokens field.
 - Temperature is forced for the target, while the evolver's original omitted temperature is preserved.
+- The laboratory runner explicitly disables thinking for both roles and records this in the broker
+  ledger. The endpoint's default thinking mode rejects named tool_choice (observed HTTP 400), and
+  thinking tool histories require reasoning_content that the original proxy/agent streaming path
+  does not reliably preserve. Enabled thinking requires a separate validated adaptation. See
+  https://api-docs.deepseek.com/guides/thinking_mode/ and the Chat Completions API documentation.
 - ARM64/native OS differs from the author's amd64 image; the hostname and timezone are pinned.
 - Session-close probes use a normal completion allowance rather than an intentional one-token
   truncation. Every such call and evolver preflight counts toward usage and broker limits.

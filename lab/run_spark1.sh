@@ -20,7 +20,8 @@ export PYTHONPATH="$source_root/src"
 "$main_python" "$source_root/lab/boundary_probe.py" --conda-root "$task_root/envs" \
     --node-root "$node_root" --work "$run_root/boundary" --data "$data_root" \
     --main-python "$main_python" --meta-python "$meta_python" > "$run_root/boundary.log" 2>&1
-broker_args=(--socket "$run_root/model.sock" --ledger "$run_root/broker.json" --max-calls 60)
+broker_args=(--socket "$run_root/model.sock" --ledger "$run_root/broker.json" --max-calls 60
+             --target-thinking disabled --evolver-thinking disabled)
 if test "${1:-}" = check; then
     broker_args+=(--offline)
 else

@@ -70,3 +70,16 @@ def test_pending_work_prevents_silent_restart(tmp_path):
     b.save()
     with pytest.raises(ValueError, match="interrupted"):
         broker.Broker(KEY, path)
+
+
+def test_thinking_configuration_is_explicit_and_independent_of_agent_input(tmp_path):
+    received = []
+    transport = httpx.MockTransport(lambda r: received.append(json.loads(r.content)) or httpx.Response(200, json=answer()))
+    b = broker.Broker(KEY, tmp_path / "ledger.json", transport=transport,
+                      thinking_modes={"target": "disabled", "evolver": "enabled"})
+    async def run():
+        for role in ("target", "evolver"):
+            assert (await b.complete(role, {**BODY, "thinking": {"type": "attacker-selected"}})).status_code == 200
+    asyncio.run(run())
+    assert [r["thinking"]["type"] for r in received] == ["disabled", "enabled"]
+    assert b.state["config"]["thinking_modes"] == {"target": "disabled", "evolver": "enabled"}
