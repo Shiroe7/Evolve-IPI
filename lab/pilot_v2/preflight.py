@@ -21,7 +21,7 @@ from pilot_v2.protocol import document_corpus
 def main():
     p=argparse.ArgumentParser();p.add_argument('--task-root',type=Path,required=True);p.add_argument('--root',type=Path,required=True);a=p.parse_args()
     root=a.root.resolve();root.mkdir(parents=True,exist_ok=False);task=a.task_root.resolve()
-    python=task/'envs/main/bin/python';meta=task/'envs/intake-metaclaw/bin/python';node=task/'node-v22.23.2-linux-arm64'
+    python=task/'envs/main/bin/python';meta=task/'envs/intake-clean-metaclaw/bin/python';node=task/'node-v22.23.2-linux-arm64'
     data=Path('/data/ljw/evolve-ipi/20261109/data');seed=root/'seed';seed.mkdir()
     response=lambda _:httpx.Response(200,json={'id':'offline','choices':[{'index':0,'message':{'role':'assistant','content':'synthetic'},'finish_reason':'stop'}],
                                                'usage':{'prompt_tokens':1,'completion_tokens':1,'total_tokens':2}})

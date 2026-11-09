@@ -11,6 +11,12 @@ Expected site 303/403/422 is behavior, API/transport/truncation/CLI parsing erro
 The generic client performs just the requested HTTP action, with no auto goal or redirect.
 One trusted site process per observation has no root registry, Skill, or risk outcomes.
 
+Clean protocol follows development campaign-function-01, whose paid usage remains included
+in the whole 240-call/6M-token allowance. It does not pool development website observations.
+Website context is an original service workspace with an instruction-free placeholder,
+not the File-Create workspace's 88 injection documents. Generic tool docs do not name an
+intake route absent from an open page. Both corrections are frozen before the clean run.
+Broker/site UDS bind uses a basename and stage cwd to avoid Linux pathname-length limits.
 Whole batch caps: 240 actual upstream calls, 6M reported tokens; per stage 12/300k/600 seconds.
 No automatic retries. Usage gates reserve a full stage allowance before starting another.
 Resource admission: available >=24GiB and full memory PSI avg10<1, 3 checks at 2s intervals.
@@ -22,7 +28,7 @@ test. It sees only site mode and actual requests, not user task index, API valid
 history, Skill, tool trace or outcomes. No arbitrary option-to-risk score is used.
 
 All v1 code, libraries and results remain unchanged. Clone MetaClaw environment separately
-as envs/intake-metaclaw and relink it only to this new checkout's pinned MetaClaw source.
+as envs/intake-clean-metaclaw and relink it only to this new checkout's pinned MetaClaw source.
 The API model and data licenses are those documented in the parent project.
 
 Usage: MAIN_PYTHON lab/pilot_v2/preflight.py --task-root TASK_ROOT --root FRESH_PREFLIGHT

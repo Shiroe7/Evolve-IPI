@@ -2,7 +2,7 @@ import copy
 import json
 from pathlib import Path
 
-VERSION = "website-intake-v2-function-v1"
+VERSION = "website-intake-v2-clean-function-v1"
 ROOTS = (("u01", "p03"), ("u02", "p01"), ("u03", "p02"))  # researcher mapping only
 MODES = ("open", "optional", "required")
 FAMILIES = ("drive-create", "chat-message", "chat-invite")

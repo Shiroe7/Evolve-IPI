@@ -19,10 +19,15 @@ from pilot.protocol import save_json,skill_manifest
 class Campaign:
     def __init__(self,task,root):
         self.task,self.root=task,root
-        self.python=task/'envs/main/bin/python';self.meta=task/'envs/intake-metaclaw/bin/python'
+        self.python=task/'envs/main/bin/python';self.meta=task/'envs/intake-clean-metaclaw/bin/python'
         self.node=task/'node-v22.23.2-linux-arm64';self.data=Path('/data/ljw/evolve-ipi/20261109/data')
         self.env={'PATH':str(self.node/'bin')+':/usr/bin:/bin','HOME':str(Path.home()),'LANG':'C.UTF-8',
                   'PYTHONPATH':str(REPO/'src')+':'+str(LAB),'PYTHONUNBUFFERED':'1'}
+        self.prior=task/'pilot-v2/campaign-function-01'
+        if not (self.prior/'instances/u01/unit.json').exists():raise RuntimeError('Development controller must finish first')
+        prior_ledgers=[json.loads(p.read_text()) for p in (self.prior/'stages').glob('*/broker.json')]
+        if any(d['pending'] for d in prior_ledgers):raise RuntimeError('Development has pending paid work')
+        prior_usage={'calls':sum(d['calls'] for d in prior_ledgers),'tokens':sum(d['usage_total_tokens'] for d in prior_ledgers)}
         self.protocol={'version':VERSION,'roots':ROOTS,'modes':MODES,'web_tasks':WEB_TASKS,
           'risk_items':{f:items(f) for f in FAMILIES},'utility_items':{f:items(f)[0] for f in FAMILIES},
           'source_commit':subprocess.check_output(['git','-C',str(REPO),'rev-parse','HEAD'],text=True).strip(),
@@ -30,6 +35,8 @@ class Campaign:
           'limits':CAP,'global_calls':GLOBAL_CALLS,'global_tokens':GLOBAL_TOKENS,'attempts_per_stage':1,
           'thinking':{'target':'disabled','evolver':'disabled'},'evolution':False,'new_independent_users':0,
           'cost':None,'cost_status':'laboratory_relay_price_unverified',
+          'prior_development_usage_in_global_budget':prior_usage,'prior_development_path':str(self.prior),
+          'website_workspace':'original_service_factory_with_instruction_free_placeholder',
           'resource_admission':{'available_gib':24,'full_psi_avg10_below':1,'checks':3,'interval_s':2},
           'corpus':document_corpus(self.data)}
         root.mkdir(parents=True,exist_ok=True)
@@ -40,7 +47,7 @@ class Campaign:
         self.failed=[]
 
     def usage(self):
-        ledgers=[json.loads(p.read_text()) for p in (self.root/'stages').glob('*/broker.json')]
+        ledgers=[json.loads(p.read_text()) for base in (self.prior,self.root) for p in (base/'stages').glob('*/broker.json')]
         if any(d['pending'] for d in ledgers):raise RuntimeError('Pending model work requires audit, not restart')
         return sum(d['calls'] for d in ledgers),sum(d['usage_total_tokens'] for d in ledgers)
 
@@ -75,16 +82,16 @@ class Campaign:
         broker=site=child=None;handles=[]
         try:
             log=(directory/'broker.log').open('w');handles.append(log)
-            broker=subprocess.Popen([str(self.python),str(LAB/'broker.py'),'--socket',str(directory/'model.sock'),
+            broker=subprocess.Popen([str(self.python),str(LAB/'broker.py'),'--socket','model.sock',
               '--ledger',str(directory/'broker.json'),'--max-calls',str(CAP['calls']),'--max-total-tokens',str(CAP['tokens']),
               '--target-thinking','disabled','--evolver-thinking','disabled','--key-file',str(Path.home()/'.config/evolve-ipi/lab_api_key')],
-              env=self.env,stdout=log,stderr=subprocess.STDOUT)
+              env=self.env,cwd=directory,stdout=log,stderr=subprocess.STDOUT)
             wait_socket(directory/'model.sock',broker)
             extra=[]
             if phase=='website':
                 log=(directory/'site.log').open('w');handles.append(log)
                 site=subprocess.Popen([str(self.python),'-m','pilot_v2.site','--mode',mode,'--log',str(directory/'website-events.jsonl'),
-                  '--socket',str(directory/'site.sock'),'--data',str(self.data)],env=self.env,stdout=log,stderr=subprocess.STDOUT)
+                  '--socket','site.sock','--data',str(self.data)],env=self.env,cwd=directory,stdout=log,stderr=subprocess.STDOUT)
                 wait_socket(directory/'site.sock',site);extra=['--site-socket',str(directory/'site.sock')]
             driver=['--phase',phase,'--task-index',str(task_index),'--item-index',str(item_index)]
             if family:driver+=['--family',family]
