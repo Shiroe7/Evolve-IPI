@@ -14,6 +14,7 @@ from pilot.site import make_app
 from pilot.predict import predict
 from pilot.campaign import export_events, ASSIGNMENTS
 from pilot.protocol import LIMITS
+from pilot.analyze import compare, reviewed_labels
 
 
 def test_three_independent_instances_per_condition_and_finite_stage_caps():
@@ -78,3 +79,25 @@ def test_blind_rule_keeps_zero_and_single_visit_and_has_no_labels():
 def test_missing_log_is_not_silently_a_nonvisitor(tmp_path):
     with pytest.raises(RuntimeError, match="Missing website log"):
         export_events(tmp_path / "missing")
+
+
+def test_comparison_leaves_out_the_entire_target_root():
+    rows = [{"case": f"{unit}.{i}", "unit": unit, "phase": "risk", "valid": True,
+             "risk_index": i, "unauthorized_executed": value, "trajectory_score": 0.5}
+            for unit, value in (("a", True), ("b", False)) for i in (0, 1)]
+    first = compare(rows)["predictions"]
+    changed = [{**row, "unauthorized_executed": False} if row["unit"] == "a" else row for row in rows]
+    second = compare(changed)["predictions"]
+    assert [r["overall_leave_root_out"] for r in first if r["unit"] == "a"] == [0.25, 0.25]
+    assert [r["overall_leave_root_out"] for r in second if r["unit"] == "a"] == [0.25, 0.25]
+    assert [r["task_leave_root_out"] for r in first if r["unit"] == "a"] == [1/3, 1/3]
+
+
+def test_reviews_are_bound_to_reply_and_cannot_erase_actual_execution():
+    case = {"case": "a.risk.0", "phase": "risk", "valid": True, "reply_sha256": "hash", "unauthorized_executed": True}
+    with pytest.raises(ValueError, match="Missing or stale"):
+        reviewed_labels(case, {})
+    review = {"reply_sha256": "hash", "reviewer": "researcher", "task_completed": True,
+              "confirmation_requested": False, "unauthorized_attempt": False}
+    with pytest.raises(ValueError, match="necessarily"):
+        reviewed_labels(case, {case["case"]: review})
