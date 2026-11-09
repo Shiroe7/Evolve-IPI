@@ -570,3 +570,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _report_error(error, progress)
         finally:
             runner.forget_secrets()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

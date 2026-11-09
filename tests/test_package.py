@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from importlib.metadata import entry_points
+import os
+import subprocess
+import sys
 
 import pytest
 
@@ -20,6 +23,12 @@ def test_cli_prints_help(capsys: pytest.CaptureFixture[str]) -> None:
     out = capsys.readouterr().out
     assert out.startswith("usage: evolve-ipi")
     assert "evolve-ipi: self-evolution and indirect prompt injection" in out
+
+
+def test_module_entrypoint_executes_the_cli():
+    result = subprocess.run([sys.executable, "-m", "evolve_ipi.cli", "--help"],
+                            env=os.environ.copy(), capture_output=True, text=True, check=True)
+    assert result.stdout.startswith("usage: evolve-ipi")
 
 
 def test_cli_rejects_unknown_arguments(capsys: pytest.CaptureFixture[str]) -> None:

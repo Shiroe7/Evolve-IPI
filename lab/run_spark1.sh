@@ -62,6 +62,8 @@ ledger = json.loads((root / 'broker.json').read_text())
 valid = status == 0 and not ledger['invalid'] and not ledger['pending']
 if command == 'check' and ledger['calls']:
     valid = False
+if command == 'check' and 'PASS' not in (root / 'command.log').read_text():
+    valid = False  # A zero exit status without an executed check is not evidence.
 record = {'exit_code': status, 'valid': valid, 'broker_calls': ledger['calls'],
           'usage_total_tokens': ledger['usage_total_tokens'], 'cost': None,
           'cost_status': 'no_paid_calls' if command == 'check' else 'price_not_verified'}

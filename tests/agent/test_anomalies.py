@@ -695,6 +695,7 @@ def test_after_the_overflow_record_the_ordinary_rules_apply_again() -> None:
 
 def test_the_patterns_are_the_ones_the_runs_watched_for() -> None:
     assert anomalies.FATAL_LOG_PATTERNS == (
+        r"COMPAT_INVALID",
         r"HTTP/1\.[01]\" (429|5\d\d)\b",
         r"Too Many Requests",
         r"rate limit exceeded",
