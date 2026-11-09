@@ -24,16 +24,17 @@ from evolve_ipi.models.compat import InvalidResponse, validate_response
 
 class Broker:
     def __init__(self, key: str, ledger: Path, *, base_url="https://api.cslcqu.cn/v1",
-                 models=None, thinking_modes=None, max_calls=60, max_output_tokens=3000, timeout_s=90, transport=None):
+                 models=None, thinking_modes=None, max_calls=60, max_total_tokens=None, max_output_tokens=3000, timeout_s=90, transport=None):
         self.key, self.ledger = key, ledger
         self.base_url = base_url
         self.models = models or {"target": "deepseek-flash", "evolver": "deepseek-flash"}
         self.thinking_modes = thinking_modes or {"target": None, "evolver": None}
         self.max_calls, self.max_output_tokens = max_calls, max_output_tokens
+        self.max_total_tokens = max_total_tokens
         self.timeout_s, self.transport = timeout_s, transport
         self.lock = asyncio.Lock()
         self.config = {"base_url": base_url, "models": self.models, "thinking_modes": self.thinking_modes, "max_calls": max_calls,
-                       "max_output_tokens": max_output_tokens, "timeout_s": timeout_s}
+                       "max_total_tokens": max_total_tokens, "max_output_tokens": max_output_tokens, "timeout_s": timeout_s}
         if ledger.exists():
             self.state = json.loads(ledger.read_text())
             if self.state.get("config") != self.config:
@@ -70,7 +71,10 @@ class Broker:
                 return self.error("unknown_role", 404)
             if self.state.get("invalid"):
                 return self.error("run_already_invalid", 503)
-            if self.state["calls"] >= self.max_calls or self.state["usage_missing"]:
+            if (self.state["calls"] >= self.max_calls or self.state["usage_missing"]
+                    or (self.max_total_tokens is not None and self.state["usage_total_tokens"] >= self.max_total_tokens)):
+                self.state["invalid"] = True
+                self.save()
                 return self.error("budget_or_usage_gate", 429)
             if not isinstance(body, dict) or not isinstance(body.get("messages"), list) or not body["messages"]:
                 return self.error("invalid_request", 400)
@@ -122,6 +126,9 @@ class Broker:
                     self.state["invalid"] = True
                 if usage:
                     self.state["usage_total_tokens"] += usage["total_tokens"]
+                    if self.max_total_tokens is not None and self.state["usage_total_tokens"] > self.max_total_tokens:
+                        self.state["invalid"] = True
+                        status, kind = 429, "token_budget_exceeded"
                 elif kind == "usage_missing":
                     self.state["usage_missing"] += 1
                 self.state["records"].append({"request": number, "role": role, "status": status,
@@ -168,10 +175,11 @@ def main():
     parser.add_argument("--socket", type=Path, required=True)
     parser.add_argument("--ledger", type=Path, required=True)
     parser.add_argument("--max-calls", type=int, default=60)
+    parser.add_argument("--max-total-tokens", type=int)
     parser.add_argument("--target-thinking", choices=("enabled", "disabled"))
     parser.add_argument("--evolver-thinking", choices=("enabled", "disabled"))
     args = parser.parse_args()
-    if args.max_calls < 1 or args.socket.exists():
+    if args.max_calls < 1 or (args.max_total_tokens is not None and args.max_total_tokens < 1) or args.socket.exists():
         parser.error("Use a positive cap and a fresh, dedicated socket path")
     os.umask(0o077)
     args.socket.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -179,7 +187,7 @@ def main():
         parser.error("--key-file is required unless --offline")
     transport = httpx.MockTransport(lambda _: httpx.Response(503, json={"error": "offline"})) if args.offline else None
     broker = Broker("offline-dummy" if args.offline else read_key(args.key_file), args.ledger,
-                    max_calls=args.max_calls, transport=transport,
+                    max_calls=args.max_calls, max_total_tokens=args.max_total_tokens, transport=transport,
                     thinking_modes={"target": args.target_thinking, "evolver": args.evolver_thinking})
     uvicorn.run(app_for(broker), uds=str(args.socket), access_log=False, log_level="warning")
 

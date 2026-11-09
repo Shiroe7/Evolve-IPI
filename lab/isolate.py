@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 
 
-def argv_for(repo, conda_root, node_root, work, data, socket, main_python, meta_python, command):
+def argv_for(repo, conda_root, node_root, work, data, socket, main_python, meta_python, command, *, site_socket=None, seed=None):
     for item in (repo, conda_root, node_root, data):
         if not item.is_dir():
             raise ValueError(f"Required experiment directory is missing: {item}")
@@ -31,6 +31,14 @@ def argv_for(repo, conda_root, node_root, work, data, socket, main_python, meta_
     for item in (repo, conda_root, node_root):
         args += ["--ro-bind", str(item), str(item)]
     args += ["--ro-bind", str(data), str(repo / "data")]
+    if seed is not None:
+        if not seed.is_dir() or any(p.is_symlink() or (p.is_file() and p.name != "SKILL.md") for p in seed.rglob("*")):
+            raise ValueError("The frozen seed may contain only Skill directories and SKILL.md files")
+        args += ["--ro-bind", str(seed), "/seed"]
+    if site_socket is not None:
+        if not site_socket.is_socket():
+            raise ValueError("The website must supply a dedicated socket")
+        args += ["--ro-bind", str(site_socket), "/run/eipi-site.sock"]
     for name in ("passwd", "group", "hosts"):
         args += ["--ro-bind", str(work / "etc" / name), "/etc/" + name]
     args += ["--bind", str(work / "home"), "/home/agent",
@@ -47,13 +55,18 @@ def argv_for(repo, conda_root, node_root, work, data, socket, main_python, meta_
            "EVOLVER_BASE_URL": "http://127.0.0.1:30014/evolver/v1", "EVOLVER_MODEL": "deepseek-flash"}
     for name, value in env.items():
         args += ["--setenv", name, value]
-    return args + [str(main_python), str(repo / "lab" / "inside.py"), "--", *command]
+    bridge = [str(main_python), str(repo / "lab" / "inside.py")]
+    if site_socket is not None:
+        bridge += ["--site-socket", "/run/eipi-site.sock"]
+    return args + bridge + ["--", *command]
 
 
 def main():
     parser = argparse.ArgumentParser()
     for name in ("conda-root", "node-root", "work", "data", "socket", "main-python", "meta-python"):
         parser.add_argument("--" + name, type=Path, required=True)
+    parser.add_argument("--site-socket", type=Path)
+    parser.add_argument("--seed", type=Path)
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.command[:1] == ["--"]:
@@ -63,7 +76,9 @@ def main():
     repo = Path(__file__).resolve().parents[1]
     argv = argv_for(repo, args.conda_root.resolve(), args.node_root.resolve(), args.work.resolve(),
                     args.data.resolve(), args.socket.resolve(), args.main_python.resolve(),
-                    args.meta_python.resolve(), args.command)
+                    args.meta_python.resolve(), args.command,
+                    site_socket=args.site_socket.resolve() if args.site_socket else None,
+                    seed=args.seed.resolve() if args.seed else None)
     raise SystemExit(subprocess.run(argv, check=False).returncode)
 
 

@@ -6,10 +6,10 @@ import signal
 
 
 async def serve(args):
-    async def connect(reader, writer):
+    async def connect(reader, writer, socket_path):
         upstream = None
         try:
-            remote, upstream = await asyncio.open_unix_connection(args.socket)
+            remote, upstream = await asyncio.open_unix_connection(socket_path)
             async def copy(source, target):
                 while data := await source.read(65536):
                     target.write(data)
@@ -24,7 +24,10 @@ async def serve(args):
             if upstream:
                 upstream.close()
 
-    server = await asyncio.start_server(connect, "127.0.0.1", args.port)
+    server = await asyncio.start_server(lambda r, w: connect(r, w, args.socket), "127.0.0.1", args.port)
+    site = None
+    if args.site_socket:
+        site = await asyncio.start_server(lambda r, w: connect(r, w, args.site_socket), "127.0.0.1", 31080)
     child = await asyncio.create_subprocess_exec(*args.command, start_new_session=True)
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
@@ -34,6 +37,9 @@ async def serve(args):
     finally:
         server.close()
         await server.wait_closed()
+        if site:
+            site.close()
+            await site.wait_closed()
         if child.returncode is None:
             os.killpg(child.pid, signal.SIGTERM)
             await child.wait()
@@ -43,6 +49,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--socket", default="/run/eipi-broker.sock")
     parser.add_argument("--port", type=int, default=30014)
+    parser.add_argument("--site-socket")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.command[:1] == ["--"]:

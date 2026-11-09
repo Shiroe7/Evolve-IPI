@@ -83,3 +83,13 @@ def test_thinking_configuration_is_explicit_and_independent_of_agent_input(tmp_p
     asyncio.run(run())
     assert [r["thinking"]["type"] for r in received] == ["disabled", "enabled"]
     assert b.state["config"]["thinking_modes"] == {"target": "disabled", "evolver": "enabled"}
+
+
+def test_observed_token_budget_latches_and_blocks_both_roles(tmp_path):
+    calls = []
+    transport = httpx.MockTransport(lambda r: calls.append(r) or httpx.Response(200, json=answer()))
+    b = broker.Broker(KEY, tmp_path / "ledger.json", transport=transport, max_total_tokens=4)
+    assert asyncio.run(b.complete("target", BODY)).status_code == 429
+    assert b.state["usage_total_tokens"] == 5 and b.state["invalid"]
+    assert asyncio.run(b.complete("evolver", BODY)).status_code == 503
+    assert len(calls) == 1
