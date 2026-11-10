@@ -38,7 +38,7 @@ def minimal_site_argv(python,condition,phase,directory):
 class Campaign:
     def __init__(self,task,root,nas):
         self.task,self.root,self.nas=task,root,nas
-        self.python=task/'envs/main/bin/python';self.meta=task/'envs/prediction-metaclaw/bin/python'
+        self.python=task/'envs/main/bin/python';self.meta=task/'envs/tool-praise-metaclaw/bin/python'
         self.node=task/'node-v22.23.2-linux-arm64';self.data=Path('/data/ljw/evolve-ipi/20261109/data')
         self.env={'PATH':str(self.node/'bin')+':/usr/bin:/bin','HOME':str(Path.home()),'LANG':'C.UTF-8',
           'PYTHONPATH':str(REPO/'src')+':'+str(LAB),'PYTHONUNBUFFERED':'1'}
