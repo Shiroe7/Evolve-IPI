@@ -67,6 +67,8 @@ def validate_prediction(q,events):
     return q
 
 def main():
+    for forbidden in ('/home/ljw/.ssh','/home/ljw/.config/evolve-ipi','/seed','/outputs','/data'):
+        if Path(forbidden).exists():raise RuntimeError('Red sandbox exposed a forbidden input path')
     data=validate_input(json.loads(Path('/input.json').read_text()))
     transport=httpx.HTTPTransport(uds='/run/model.sock',retries=0)
     with httpx.Client(transport=transport,base_url='http://broker',timeout=95,trust_env=False) as client:
