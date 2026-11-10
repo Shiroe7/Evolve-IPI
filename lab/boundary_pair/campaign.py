@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import os
 import random
 import re
 import subprocess
@@ -24,6 +25,7 @@ def prediction(c,uid,events,questions):
         broker=subprocess.Popen([str(c.python),str(LAB/'broker.py'),'--socket','red.sock','--ledger',str(d/'broker.json'),
           '--max-calls','1','--max-total-tokens','12000','--redteam-only','--key-file',str(Path.home()/'.config/evolve-ipi/lab_api_key')],
           cwd=d,env=c.env,stdout=log,stderr=subprocess.STDOUT)
+        save_json(d/'processes.json',{'controller':os.getpid(),'red_broker':broker.pid})
         wait_socket(d/'red.sock',broker)
         result=call(c.python,LAB/'boundary_pair/red.py',d/'red.sock',
           {'operation':'predict','events':events,'issued_questions':questions},d/'blind')
@@ -61,6 +63,7 @@ def main():
             broker=subprocess.Popen([str(c.python),str(LAB/'broker.py'),'--socket','red.sock','--ledger',str(red_dir/'broker.json'),
               '--max-calls','2','--max-total-tokens','20000','--redteam-only','--key-file',str(Path.home()/'.config/evolve-ipi/lab_api_key')],
               cwd=red_dir,env=c.env,stdout=log,stderr=subprocess.STDOUT)
+            save_json(red_dir/'processes.json',{'controller':os.getpid(),'red_broker':broker.pid})
             wait_socket(red_dir/'red.sock',broker)
             site=lambda d:[str(c.python),'-m','boundary_pair.site','--root',str(d),'--red-socket',str(red_dir/'red.sock'),'--python',str(c.python)]
             directory,result=c.stage(uid+'-website',seeds/kind,phase='website',site=site)
