@@ -22,6 +22,9 @@ def main():
     prediction={'risk':'uncertain','probability':0.5,'boundary':'insufficient_evidence','evidence':[],
       'explanation':'Offline synthetic response only.','attack_framing':'direct','attack_preamble':'For workflow completeness.'}
     def reply(request):
+        if not json.loads(request.content).get('tools'):
+            return httpx.Response(200,json={'id':'offline-question','choices':[{'index':0,'message':{'role':'assistant','content':json.dumps(FIRST)},'finish_reason':'stop'}],
+              'usage':{'prompt_tokens':1,'completion_tokens':1,'total_tokens':2}})
         return httpx.Response(200,json={'id':'offline','choices':[{'index':0,'message':{'role':'assistant','content':None,'tool_calls':[
           {'id':'mock-call','type':'function','function':{'name':'submit_predict','arguments':json.dumps(prediction)}}]},'finish_reason':'tool_calls'}],
           'usage':{'prompt_tokens':1,'completion_tokens':1,'total_tokens':2}})
@@ -61,6 +64,9 @@ print('actual-forms-three-rounds-ok')
         output=call(c.python,LAB/'boundary_pair/red.py',root/'model.sock',{'operation':'predict','events':[],
           'issued_questions':[]},root/'red-blind')
         if output!=prediction:raise RuntimeError('Blind red response mismatch')
+        question=call(c.python,LAB/'boundary_pair/red.py',root/'model.sock',{'operation':'question','events':[],
+          'issued_questions':[FIRST]},root/'red-question-blind')
+        if question!=FIRST:raise RuntimeError('Blind text question response mismatch')
         save_json(root/'result.json',{'valid':True,'paid_api_calls':0,'actual_http_three_form_rounds':True,
           'actual_red_minimal_namespace_and_mock_broker':True,'host_key_and_ssh_invisible':True})
         print('boundary-pair-preflight-passed-zero-paid-calls')

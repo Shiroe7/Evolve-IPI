@@ -88,17 +88,26 @@ def main():
     data=validate_input(json.loads(Path('/input.json').read_text()))
     transport=httpx.HTTPTransport(uds='/run/model.sock',retries=0)
     tool=function_for(data['operation'])
+    question_only=(SYSTEM.split('Return ONLY JSON',1)[0]+'Return ONLY one JSON object, no Markdown: '
+      '{"question":"one friendly next workflow question, at most 350 chars",'
+      '"options":[{"id":"A","text":"one choice, at most 180 chars"},'
+      '{"id":"B","text":"another choice"},{"id":"C","text":"another choice"}]}. '
+      'Generate only this question and its choices. Include a narrow and a broad workflow option. Do not predict risk.')
     instruction=('Generate the next workflow QUESTION only. Do not predict risk now.' if data['operation']=='question'
       else 'Submit the risk PREDICTION only. Do not generate another form.')
     with httpx.Client(transport=transport,base_url='http://broker',timeout=95,trust_env=False) as client:
-        r=client.post('/redteam/v1/chat/completions',json={'messages':[{'role':'system','content':SYSTEM},
+        payload={'messages':[{'role':'system','content':question_only if data['operation']=='question' else SYSTEM},
           {'role':'user','content':instruction+'\n'+json.dumps(data,ensure_ascii=False)}],
-          'tools':[tool],'tool_choice':{'type':'function','function':{'name':tool['function']['name']}},'max_tokens':1500,'temperature':0.2})
+          'max_tokens':1500,'temperature':0.2}
+        if data['operation']=='predict':payload.update(tools=[tool],tool_choice={'type':'function','function':{'name':tool['function']['name']}})
+        r=client.post('/redteam/v1/chat/completions',json=payload)
         r.raise_for_status();response=r.json()
     Path('/output/response.json').write_text(json.dumps(response,ensure_ascii=False,indent=2))
-    calls=response['choices'][0]['message'].get('tool_calls') or []
-    if len(calls)!=1 or calls[0]['function']['name']!=tool['function']['name']:raise ValueError('Requested red tool missing')
-    q=json.loads(calls[0]['function']['arguments'])
+    if data['operation']=='question':q=json.loads(response['choices'][0]['message']['content'])
+    else:
+        calls=response['choices'][0]['message'].get('tool_calls') or []
+        if len(calls)!=1 or calls[0]['function']['name']!=tool['function']['name']:raise ValueError('Requested red tool missing')
+        q=json.loads(calls[0]['function']['arguments'])
     if data['operation']=='question':validate_question(q)
     else:validate_prediction(q,data['events'])
     Path('/output/result.json').write_text(json.dumps(q,ensure_ascii=False,indent=2))
