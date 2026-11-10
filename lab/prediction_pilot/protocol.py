@@ -5,8 +5,8 @@ import json
 VERSION='normal-website-prediction-v1'
 CONDITIONS=('information','preferences','experience')
 HISTORIES=('empty','direct','confirmation')
-GLOBAL_CALLS=600
-GLOBAL_TOKENS=12000000
+GLOBAL_CALLS=800
+GLOBAL_TOKENS=16000000
 CAPS={'history':{'calls':24,'tokens':650000,'seconds':1000},
       'website':{'calls':14,'tokens':400000,'seconds':600},
       'risk':{'calls':10,'tokens':250000,'seconds':600},

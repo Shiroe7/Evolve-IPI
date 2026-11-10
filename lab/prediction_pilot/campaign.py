@@ -15,6 +15,7 @@ LAB=Path(__file__).resolve().parents[1];REPO=LAB.parent;sys.path.insert(0,str(LA
 from prediction_pilot.protocol import plan,sha,canonical,CONDITIONS,TASKS,SPECS,CAPS,GLOBAL_CALLS,GLOBAL_TOKENS,FORMS,WELCOME
 from prediction_pilot.blind import predict
 from prediction_pilot.predictor import validate_input
+from prediction_pilot.attestation import build as build_fixture
 from pilot.protocol import save_json,skill_manifest
 from pilot.campaign import wait_socket,stop
 from isolate import argv_for
@@ -42,7 +43,7 @@ class Campaign:
         root.mkdir(parents=True,exist_ok=True);nas.mkdir(parents=True,exist_ok=True)
         protocol=plan();protocol.update(source_commit=subprocess.check_output(['git','-C',str(REPO),'rev-parse','HEAD'],text=True).strip(),
           predictor_sha256=digest(LAB/'prediction_pilot/predictor.py'),dataset_manifest_sha256=digest(self.data/'SHA256SUMS'),
-          data_visibility='trusted runner verifies official data; nested OpenClaw mount hides repo data/git/lab/tests and exposes only current file fixture',
+          data_visibility='host verifies full official data, hash-attested current rows enter isolated target; repo data/git/tests masked; official remaining startup checks unchanged',
           website_visibility='separate minimal namespace with own page code and log directory only, no history, Skills, test data or outcomes')
         path=root/'protocol.json'
         if path.exists() and json.loads(path.read_text())!=json.loads(canonical(protocol)):raise RuntimeError('Protocol changed; do not silently resume')
@@ -95,6 +96,7 @@ class Campaign:
             raise RuntimeError('Invalid stage retained; cannot silently rerun')
         if d.exists():raise RuntimeError('Incomplete stage requires process audit')
         cap=CAPS[stage];self.allowance(cap['calls'],cap['tokens']);self.admit(d.name);d.mkdir(parents=True)
+        fixture=d/'fixture.json';save_json(fixture,build_fixture(self.data,stage,phase,item));public_data=d/'public-data';public_data.mkdir()
         result={'uid':uid,'stage':stage,'study_phase':phase,'website_condition':condition,'item':item,
           'started_unix':time.time(),'valid':False,'attempts':1,'caps':cap}
         broker=child=site=None;handles=[]
@@ -105,14 +107,15 @@ class Campaign:
                 site_dir=d/'site-view';site_dir.mkdir();log=(d/'site.log').open('w');handles.append(log)
                 site=subprocess.Popen(minimal_site_argv(self.python,condition,phase,site_dir),env=self.env,stdout=log,stderr=subprocess.STDOUT)
                 wait_socket(site_dir/'site.sock',site);extra=['--site-socket',str(site_dir/'site.sock')]
-            args=['--stage',stage,'--phase',phase]
+            args=['--stage',stage,'--phase',phase,'--fixture-sha256',digest(fixture)]
             if kind:args+=['--kind',kind]
             if item:args+=['--item',item]
             if refs:args+=['--references',*refs]
             seed=None if stage=='history' else self.root/'instances'/uid/'seed'
-            argv=argv_for(REPO,self.task/'envs',self.node,d/'sandbox',self.data,d/'model.sock',self.python,self.meta,
+            argv=argv_for(REPO,self.task/'envs',self.node,d/'sandbox',public_data,d/'model.sock',self.python,self.meta,
               [str(self.python),str(LAB/'prediction_pilot/driver.py'),*args],
               site_socket=d/'site-view/site.sock' if stage=='website' else None,seed=seed)
+            argv[1:1]=['--ro-bind',str(fixture),'/fixture.json','--tmpfs',str(REPO/'.git'),'--tmpfs',str(REPO/'tests')]
             if stage!='history':argv[1:1]=['--ro-bind',str(self.nas/'capsules'/f'{uid}.json'),'/experience.json']
             log=(d/'agent.log').open('w');handles.append(log)
             child=subprocess.Popen(argv,env=self.env,stdout=log,stderr=subprocess.STDOUT)

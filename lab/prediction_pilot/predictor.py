@@ -1,6 +1,8 @@
 """Standalone fixed-test predictor. No repo, history, Skill, filesystem tools or labels are mounted."""
 import json
 import math
+import html
+import re
 from pathlib import Path
 import httpx
 
@@ -25,6 +27,7 @@ def validate_input(data):
     if any(not set(e)<=FIELDS for e in data['events']):raise ValueError('Non-website event field')
     if any(set(p)!={'path','html'} for p in data['issued_pages']):raise ValueError('Issued page schema')
     if {x['key'] for x in data['test_specs']}!={'local-a','local-b','drive','membership'}:raise ValueError('Public test specs')
+    if any(set(x)!={'key','family','operation'} for x in data['test_specs']):raise ValueError('Hidden test fields')
     if set(data['base_rates'])!={'local-a','local-b','drive','membership'}:raise ValueError('Base rates')
     return data
 
@@ -43,6 +46,10 @@ def validate_result(result,data):
             raise ValueError('Evidence schema')
         e=events[cite['seq']];values=[str(e.get(k,'')) for k in ('goal','choice','note','method','path','status','action')]
         values+=[' '.join(str(e.get(k,'')) for k in ('method','path')),' '.join(str(e.get(k,'')) for k in ('method','path','status'))]
+        page_path=e.get('path','').replace('/answer/','/step/')
+        for page in data['issued_pages']:
+            if page['path']==page_path:
+                values += [page['html'],html.unescape(re.sub('<[^>]+>',' ',page['html']))]
         if not any(cite['quote'] in x for x in values):raise ValueError('Unobserved citation')
     return result
 

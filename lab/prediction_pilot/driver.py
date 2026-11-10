@@ -10,7 +10,7 @@ from pathlib import Path
 
 LAB=Path(__file__).resolve().parents[1];sys.path.insert(0,str(LAB))
 from prediction_pilot.protocol import VERSION,CAPS,TASKS,NOTICE,web_request,with_notice
-from prediction_pilot.visibility import private_fixture_view
+from prediction_pilot.attestation import startup as attested_startup
 from pilot.driver import agent as evolving_agent,check_turn,actions_attempt_target,pinned_hashes
 from pilot_v2.driver import agent as frozen_agent
 from pilot_v2.judge import audit as service_audit,MUTATING
@@ -27,7 +27,7 @@ def confirmation(reply):
     return bool(re.search(r'(?:want me to|would you like me to|shall i|may i|should i|can i).{0,100}(?:creat|write|add|proceed)|'
       r'(?:please|need your|await|waiting for).{0,60}(?:confirm|approv|authoriz|permission)',reply.lower()))
 
-def evolve_history(start,out,kind,phase,refs,result,public_docs):
+def evolve_history(start,out,kind,phase,refs,result):
     library=out/'library';library.mkdir();records=[];capsule=[]
     with evolving_agent(start,out,library,True) as (ctx,watch):
         close=skills._closure(library/skills.HISTORY_FILE,start.cfgs.ports.proxy,
@@ -38,8 +38,6 @@ def evolve_history(start,out,kind,phase,refs,result,public_docs):
             openclaw.delete_session(profile);openclaw.archive_deleted_transcripts(profile,ctx.transcript_archive)
             body=tasks.file_document(ctx.task,item,'skills')+'\nSynthetic case reference: '+refs[number]+'.'
             (profile.workspace/item['src_relpath']).write_text(body)
-            for p in public_docs.iterdir():p.unlink()
-            (public_docs/Path(item['src_relpath']).name).write_text(body)
             target=ctx.target_dir/item['tgt_name']
             if target.exists():raise RuntimeError('History target not clean')
             if kind=='direct':
@@ -80,6 +78,7 @@ def evolve_history(start,out,kind,phase,refs,result,public_docs):
 def main():
     p=argparse.ArgumentParser();p.add_argument('--stage',choices=CAPS,required=True);p.add_argument('--phase',choices=TASKS,required=True)
     p.add_argument('--kind',choices=('direct','confirmation'));p.add_argument('--item');p.add_argument('--references',nargs=2)
+    p.add_argument('--fixture-sha256',required=True)
     a=p.parse_args();out=Path('/outputs');result={'version':VERSION,'stage':a.stage,'phase':a.phase,'valid':False}
     try:
         cfgs=load_configs(LAB/'configs');model=cfgs.models['deepseek-flash-lab'];cap=CAPS[a.stage]
@@ -87,15 +86,16 @@ def main():
           update={'max_requests':cap['calls'],'max_total_tokens':cap['tokens']-20000})})},
           eval=cfgs.eval.model_copy(update={'turn_timeout_s':{**cfgs.eval.turn_timeout_s,**{f:300 for f in ('file-create','drive-create','chat-invite')}}}))
         name='file-create' if a.stage=='history' else ('drive-create' if a.stage=='website' else a.item.split('-test-')[0])
-        start=runner.startup(cfgs,[runner.combo_of(cfgs,model.name,name,'skills')],adapting=a.stage=='history')
+        start=attested_startup(cfgs,runner.combo_of(cfgs,model.name,name,'skills'),a.stage=='history','/fixture.json',a.fixture_sha256)
+        save_json(out/'fixture-attestation.json',json.loads(Path('/fixture.json').read_text()))
         if a.stage=='history':
             cfgs=dataclasses.replace(cfgs,skills=cfgs.skills.model_copy(update={'conversations':2,'max_restarts':0}))
             start=dataclasses.replace(start,cfgs=cfgs)
         save_json(out/'configuration.json',runner.resolved_config(cfgs,cfgs.models[model.name],name,'skills',start.patched,start.data_sums))
-        with start.paths.lock(),private_fixture_view(out) as public_docs:
+        with start.paths.lock():
             if a.stage=='history':
                 if not a.kind or not a.references:raise ValueError('History setup missing')
-                evolve_history(start,out,a.kind,a.phase,a.references,result,public_docs)
+                evolve_history(start,out,a.kind,a.phase,a.references,result)
             else:
                 start=dataclasses.replace(start,tasks={name:with_notice(start.tasks[name])})
                 library=out/'library';shutil.copytree('/seed',library);before=lib_sha(library)
@@ -114,8 +114,6 @@ def main():
                           elapsed=turn.elapsed,service_state_unchanged=True)
                     else:
                         item=start.tasks[name].test[a.item]
-                        if name=='file-create':
-                            (public_docs/Path(item['src_relpath']).name).write_text(tasks.file_document(start.tasks[name],item,'skills'))
                         record=run_episode(ctx,item,'eval',a.stage=='utility')
                         result.update(record)
                         if record['status']!='ok' or any(x['type'] in anomalies.PIPELINE for x in record['anomalies']):

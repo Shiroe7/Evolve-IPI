@@ -11,7 +11,7 @@ import uvicorn
 from .campaign import Campaign,minimal_site_argv,LAB,REPO,digest
 from .protocol import SPECS
 from .blind import predict
-from .visibility import wrapper_source
+from .attestation import build as build_fixture
 from broker import Broker,app_for
 from isolate import argv_for
 from pilot.campaign import wait_socket,stop
@@ -42,45 +42,48 @@ def main():
         site_dir=root/'site-view';site_dir.mkdir();log=(root/'site.log').open('w')
         site=subprocess.Popen(minimal_site_argv(python,'information','exploration',site_dir),env=env,stdout=log,stderr=subprocess.STDOUT)
         wait_socket(site_dir/'site.sock',site)
-        command=[str(python),str(LAB/'prediction_pilot/driver.py'),'--stage','website','--phase','exploration']
-        argv=argv_for(REPO,task/'envs',node,root/'target-sandbox',data,root/'model.sock',python,meta,command,site_socket=site_dir/'site.sock',seed=seed)
-        argv[1:1]=['--ro-bind',str(capsule),'/experience.json']
+        public_data=root/'public-data';public_data.mkdir();fixture=root/'fixture.json'
+        save_json(fixture,build_fixture(data,'website','exploration'))
+        command=[str(python),str(LAB/'prediction_pilot/driver.py'),'--stage','website','--phase','exploration','--fixture-sha256',digest(fixture)]
+        argv=argv_for(REPO,task/'envs',node,root/'target-sandbox',public_data,root/'model.sock',python,meta,command,site_socket=site_dir/'site.sock',seed=seed)
+        argv[1:1]=['--ro-bind',str(capsule),'/experience.json','--ro-bind',str(fixture),'/fixture.json','--tmpfs',str(REPO/'.git'),'--tmpfs',str(REPO/'tests')]
         done=subprocess.run(argv,env=env,capture_output=True,text=True,timeout=180)
         save_json(root/'target-check.json',{'exit_code':done.returncode,'stdout':done.stdout,'stderr':done.stderr})
         if done.returncode:raise RuntimeError('Actual fixture-blind OpenClaw gateway failed; inspect target-check')
-        # Independent inner namespace probe checks hidden future data, notebook availability and proc isolation.
+        # Independent current-row fixture probe checks hidden future data, notebook availability and proc isolation.
         code=r'''
-import json,pathlib,subprocess,sys
-from prediction_pilot.visibility import wrapper_source
-repo=pathlib.Path(sys.argv[1]);docs=pathlib.Path('/outputs/one-doc');docs.mkdir();(docs/'current.txt').write_text('current only')
-ws=pathlib.Path('/tmp/ws/ipi_docs');ws.mkdir(parents=True);(ws/'future.txt').write_text('must hide')
-script=pathlib.Path('/tmp/fixture-blind-python');script.write_text(wrapper_source(pathlib.Path(sys.executable),repo,docs,ws));script.chmod(0o755)
-inner="""import pathlib,sys
-repo=pathlib.Path(sys.argv[1]);ws=pathlib.Path(sys.argv[2])
+import json,pathlib,sys
+from evolve_ipi import tasks
+from evolve_ipi.paths import RuntimePaths
+from evolve_ipi.agent.episode import prepare_environment
+from evolve_ipi.config import load_configs
+repo=pathlib.Path(sys.argv[1])
 assert not (repo/'data/SHA256SUMS').exists()
-assert not (repo/'lab/prediction_pilot/protocol.py').exists()
 assert not (repo/'.git/HEAD').exists()
-assert (ws/'current.txt').read_text()=='current only'
-assert not (ws/'future.txt').exists()
+assert not (repo/'tests/test_prediction_pilot.py').exists()
 assert pathlib.Path('/experience.json').exists()
-assert not pathlib.Path('/proc',sys.argv[3],'environ').exists()
+assert not pathlib.Path('/proc',sys.argv[2],'environ').exists()
+payload=json.loads(pathlib.Path('/fixture.json').read_text());task=tasks.Task(**payload['task'])
+cfgs=load_configs(repo/'lab/configs');paths=RuntimePaths()
+ctx=prepare_environment(task,'skills',paths,cfgs.ports,cfgs.ports.proxy,300)
+assert sorted(x.name for x in (ctx.profile.workspace/'ipi_docs').iterdir())==['report_200.txt']
+assert set(task.test)=={'file-create-test-200'} and not task.adaptation
+try:pathlib.Path('/fixture.json').write_text('modified')
+except OSError:pass
+else:raise AssertionError('Attested fixture writable')
 print('future-fixtures-hidden-current-document-and-synthetic-memory-visible')
-"""
-subprocess.run([str(script),'-c',inner,str(repo),str(ws),str(__import__('os').getpid())],check=True)
 '''
-        argv=argv_for(REPO,task/'envs',node,root/'visibility-sandbox',data,root/'model.sock',python,meta,
-          [str(python),'-c',code,str(REPO)],seed=seed)
-        argv[1:1]=['--ro-bind',str(capsule),'/experience.json']
-        # isolate sets PYTHONPATH=src only; add lab for this trusted preflight code before using the wrapper.
-        code=code.replace('import json,pathlib,subprocess,sys','import json,pathlib,subprocess,sys\nsys.path.insert(0,'+repr(str(LAB))+')')
-        idx=argv.index('-c');argv[idx+1]=code
+        risk_fixture=root/'risk-fixture.json';save_json(risk_fixture,build_fixture(data,'risk','exploration','file-create-test-200'))
+        argv=argv_for(REPO,task/'envs',node,root/'visibility-sandbox',public_data,root/'model.sock',python,meta,
+          [str(python),'-c',code,str(REPO),str(os.getpid())],seed=seed)
+        argv[1:1]=['--ro-bind',str(capsule),'/experience.json','--ro-bind',str(risk_fixture),'/fixture.json','--tmpfs',str(REPO/'.git'),'--tmpfs',str(REPO/'tests')]
         done=subprocess.run(argv,env=env,capture_output=True,text=True,timeout=90)
         save_json(root/'visibility-check.json',{'exit_code':done.returncode,'stdout':done.stdout,'stderr':done.stderr})
         if done.returncode:raise RuntimeError('Fixture visibility boundary failed')
         prediction=predict(python,LAB/'prediction_pilot/predictor.py',root/'model.sock',
           {'events':[],'issued_pages':[],'test_specs':SPECS,'base_rates':output['execution_probabilities']},root/'blind-predictor')
         if prediction!=output:raise RuntimeError('Mock predictor result mismatch')
-        save_json(root/'result.json',{'valid':True,'paid_api_calls':0,'actual_openclaw_nested_gateway':True,
+        save_json(root/'result.json',{'valid':True,'paid_api_calls':0,'actual_openclaw_gateway':True,
           'private_test_data_hidden':True,'only_current_document_visible':True,'synthetic_memory_available':True,
           'predictor_cannot_read_history_skills_or_tests':True,'independent_site_namespace':True})
         print('prediction-preflight-passed-zero-paid-calls')
