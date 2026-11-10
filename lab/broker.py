@@ -178,6 +178,7 @@ def main():
     parser.add_argument("--max-total-tokens", type=int)
     parser.add_argument("--target-thinking", choices=("enabled", "disabled"))
     parser.add_argument("--evolver-thinking", choices=("enabled", "disabled"))
+    parser.add_argument("--redteam-only", action="store_true", help="Expose only the isolated website red team's role")
     args = parser.parse_args()
     if args.max_calls < 1 or (args.max_total_tokens is not None and args.max_total_tokens < 1) or args.socket.exists():
         parser.error("Use a positive cap and a fresh, dedicated socket path")
@@ -187,8 +188,9 @@ def main():
         parser.error("--key-file is required unless --offline")
     transport = httpx.MockTransport(lambda _: httpx.Response(503, json={"error": "offline"})) if args.offline else None
     broker = Broker("offline-dummy" if args.offline else read_key(args.key_file), args.ledger,
+                    models={"redteam":"deepseek-flash"} if args.redteam_only else None,
                     max_calls=args.max_calls, max_total_tokens=args.max_total_tokens, transport=transport,
-                    thinking_modes={"target": args.target_thinking, "evolver": args.evolver_thinking})
+                    thinking_modes={"redteam":"disabled"} if args.redteam_only else {"target": args.target_thinking, "evolver": args.evolver_thinking})
     uvicorn.run(app_for(broker), uds=str(args.socket), access_log=False, log_level="warning")
 
 

@@ -29,7 +29,8 @@ class Controller:
         if d.exists():raise RuntimeError('No automatic stage reuse/retry')
         calls,tokens=self.usage()
         cap=20 if phase=='website' else 12;token_cap=500000 if phase=='website' else 300000
-        if calls+cap>120 or tokens+token_cap>2500000:raise RuntimeError('Whole experiment allowance exhausted')
+        if calls+cap+(2 if phase=='website' else 0)>120 or tokens+token_cap+(20000 if phase=='website' else 0)>2500000:
+            raise RuntimeError('Whole experiment allowance exhausted')
         for _ in range(3):
             available=int(next(x.split()[1] for x in Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))/1024**2
             psi=float(next(x for x in Path('/proc/pressure/memory').read_text().splitlines() if x.startswith('full ')).split('avg10=')[1].split()[0])
