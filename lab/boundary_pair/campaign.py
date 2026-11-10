@@ -11,12 +11,20 @@ from pathlib import Path
 from .calibrate import Controller,LAB,REPO
 from .blind import call
 from .red import FIRST
+from .red import validate_prediction
 from pilot.campaign import stop,wait_socket
 from pilot.protocol import save_json,skill_manifest
 
 def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 
 def prediction(c,uid,events,questions):
+    d=c.root/'red-final'/uid
+    if (c.root/'validated-continuation.json').exists() and (d/'sealed.json').exists():
+        expected={'operation':'predict','events':events,'issued_questions':questions}
+        if json.loads((d/'blind/input.json').read_text())!=expected:raise RuntimeError('Retained red inputs differ')
+        old=json.loads((d/'sealed.json').read_text())
+        if old['output_sha256']!=digest(d/'blind/output/result.json'):raise RuntimeError('Retained prediction changed')
+        return validate_prediction(json.loads((d/'blind/output/result.json').read_text()),events)
     calls,tokens=c.usage()
     if calls+1>120 or tokens+12000>2500000:raise RuntimeError('No allowance for red prediction')
     d=c.root/'red-final'/uid;d.mkdir(parents=True,exist_ok=False)
@@ -38,12 +46,16 @@ def prediction(c,uid,events,questions):
     finally:stop(broker);log.close()
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--task-root',type=Path,required=True);p.add_argument('--root',type=Path,required=True);a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--task-root',type=Path,required=True);p.add_argument('--root',type=Path,required=True)
+    p.add_argument('--continue-validated-records',action='store_true');a=p.parse_args()
     c=Controller(a.task_root.resolve(),a.root.resolve());cal=json.loads((c.root/'calibration.json').read_text())
     c.meta=c.task/'envs/boundary-web-metaclaw/bin/python'
     if cal['gate_passed'] is not True:raise RuntimeError('No reproducible positive/negative calibration pair')
     seeds=c.root/'researcher-seeds';before={k:skill_manifest(seeds/k) for k in ('empty','adapted')}
     mapping=[('visitor-27','empty'),('visitor-84','adapted')];random.SystemRandom().shuffle(mapping)
+    if a.continue_validated_records:
+        if not (c.root/'validated-continuation.json').exists():raise RuntimeError('Explicit continuation audit missing')
+        mapping=json.loads((c.root/'web-protocol.json').read_text())['mapping_researcher_only']
     extension={'version':'boundary-pair-web-tool-schema-v2','source_commit':subprocess.check_output(['git','-C',str(REPO),'rev-parse','HEAD'],text=True).strip(),
       'mapping_researcher_only':mapping,'rounds_max':3,'first_question':FIRST,'later_questions':'DeepSeek sees accepted website events and its own pages only',
       'red_memory_across_visitors':False,'red_knows_pair_composition':False,'new_independent_users':0,
@@ -53,10 +65,20 @@ def main():
       'global_calls':120,'global_reported_tokens':2500000,'attempts_per_stage':1,'cost':None}
     if (c.root/'startup-recovery.json').exists():extension['startup_recovery']=json.loads((c.root/'startup-recovery.json').read_text())
     if (c.root/'repair-history.json').exists():extension['retained_development']=json.loads((c.root/'repair-history.json').read_text())
-    if (c.root/'web-protocol.json').exists():raise RuntimeError('Fresh campaign extension required')
-    save_json(c.root/'web-protocol.json',extension)
+    if (c.root/'web-protocol.json').exists() and not a.continue_validated_records:raise RuntimeError('Fresh campaign extension required')
+    save_json(c.root/('web-continuation-protocol.json' if a.continue_validated_records else 'web-protocol.json'),extension)
     predictions={};goal_only={};websites={}
     for uid,kind in mapping:
+        retained=c.root/'stages'/(uid+'-website')
+        if a.continue_validated_records and (retained/'outcome.json').exists():
+            r=json.loads((retained/'outcome.json').read_text())
+            if not r['valid'] or (retained/'site-invalid.json').exists():raise RuntimeError('Cannot reuse an invalid website')
+            events=[json.loads(x) for x in (retained/'website-events.jsonl').read_text().splitlines()]
+            questions=json.loads((retained/'issued-questions.json').read_text())
+            websites[uid]={'events':events,'questions':questions,'stage':str(retained)}
+            goal_only[uid]=prediction(c,uid+'-goal-only',[e for e in events if e['path'] in ('/start','/intake')],[])
+            predictions[uid]=prediction(c,uid,events,questions)
+            continue
         # Dedicated red broker has no target endpoint and no visitor state/history access.
         red_dir=c.root/'red-question-brokers'/uid;red_dir.mkdir(parents=True)
         log=(red_dir/'broker.log').open('w');broker=None

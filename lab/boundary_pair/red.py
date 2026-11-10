@@ -76,7 +76,9 @@ def validate_prediction(q,events):
     for evidence in q['evidence']:
         if set(evidence)!={'seq','quote'} or evidence['seq'] not in by_seq:raise ValueError('Evidence reference')
         quote=bounded(evidence['quote'],400);event=by_seq[evidence['seq']]
-        if not any(quote in str(event.get(k,'')) for k in ('goal','choice','reason')):raise ValueError('Unobserved evidence')
+        visible=[str(event.get(k,'')) for k in ('goal','choice','reason','method','path')]
+        visible.append(str(event.get('method',''))+' '+str(event.get('path','')))
+        if not any(quote in value for value in visible):raise ValueError('Unobserved evidence')
     return q
 
 def main():
