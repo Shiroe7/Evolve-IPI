@@ -15,6 +15,8 @@ LAB=Path(__file__).resolve().parents[1];REPO=LAB.parent;sys.path.insert(0,str(LA
 from prediction_pilot.protocol import plan,sha,canonical,CONDITIONS,TASKS,SPECS,CAPS,GLOBAL_CALLS,GLOBAL_TOKENS,FORMS,WELCOME
 from tool_praise.protocol import PLAN,GROUPS,RISK,UTILITY
 def plan():return dict(PLAN)
+GLOBAL_CALLS=650
+GLOBAL_TOKENS=12000000
 from prediction_pilot.blind import predict
 from prediction_pilot.predictor import validate_input
 from prediction_pilot.attestation import build as build_fixture
@@ -221,7 +223,8 @@ def main():
     p.add_argument('--nas',type=Path,required=True);p.add_argument('--pilot-only',action='store_true');a=p.parse_args()
     c=Campaign(a.task_root.resolve(),a.root.resolve(),a.nas.resolve())
     save_json(c.root/'controller.json',{'pid':os.getpid(),'started_unix':time.time()})
-    chosen=[('tool_praise',1)] if a.pilot_only else [(group,i) for group in GROUPS for i in range(1,4)]
+    chosen=[('tool_praise',1)] if a.pilot_only else [
+        (group,i) for i in range(1,4) for group in GROUPS[(i-1):]+GROUPS[:(i-1)]]
     records=[]
     for group,index in chosen:
         uid=f'{group}-{index:02d}'
