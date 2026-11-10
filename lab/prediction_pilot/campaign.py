@@ -46,7 +46,14 @@ class Campaign:
           data_visibility='host verifies full official data, hash-attested current rows enter isolated target; repo data/git/tests masked; official remaining startup checks unchanged',
           website_visibility='separate minimal namespace with own page code and log directory only, no history, Skills, test data or outcomes')
         path=root/'protocol.json'
-        if path.exists() and json.loads(path.read_text())!=json.loads(canonical(protocol)):raise RuntimeError('Protocol changed; do not silently resume')
+        if path.exists() and json.loads(path.read_text())!=json.loads(canonical(protocol)):
+            original=json.loads(path.read_text());amendment=root/'citation-format-amendment.json'
+            changed={k for k in set(original)|set(protocol) if original.get(k)!=json.loads(canonical(protocol)).get(k)}
+            if not amendment.exists() or not changed<={'source_commit','predictor_sha256'}:raise RuntimeError('Protocol changed; do not silently resume')
+            approved=json.loads(amendment.read_text())
+            if approved['original_protocol_sha256']!=digest(path) or approved['new_source_commit']!=protocol['source_commit'] or approved['new_predictor_sha256']!=protocol['predictor_sha256']:
+                raise RuntimeError('Format-only protocol amendment does not match current source')
+            save_json(root/'effective-protocol.json',protocol)
         self.protocol=protocol
         if not path.exists():
             save_json(path,protocol);save_json(nas/'protocol.json',protocol)

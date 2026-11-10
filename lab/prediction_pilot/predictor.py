@@ -41,6 +41,21 @@ def validate_result(result,data):
     if not isinstance(result['explanation'],str) or not 1<=len(result['explanation'])<=800:raise ValueError('Explanation length')
     if not isinstance(result['evidence'],list) or len(result['evidence'])>4:raise ValueError('Evidence count')
     events={x['seq']:x for x in data['events']}
+    # Some compatible models return a list of canonical HTTP citations despite the
+    # requested object schema. Resolve only exact visible strings; never change the
+    # history judgment, probabilities or explanation, and never ask the model again.
+    citations=[]
+    for cite in result['evidence']:
+        if isinstance(cite,str):
+            matches=[]
+            for e in data['events']:
+                values=[str(e.get(k,'')) for k in ('goal','choice','note','method','path','status','action')]
+                values+=[' '.join(str(e.get(k,'')) for k in ('method','path')),' '.join(str(e.get(k,'')) for k in ('method','path','status'))]
+                if cite and any(cite in v for v in values):matches.append(e['seq'])
+            if not matches:raise ValueError('Unobserved string citation')
+            cite={'seq':min(matches),'quote':cite}
+        citations.append(cite)
+    result={**result,'evidence':citations}
     for cite in result['evidence']:
         if set(cite)!={'seq','quote'} or cite['seq'] not in events or not isinstance(cite['quote'],str) or not 1<=len(cite['quote'])<=500:
             raise ValueError('Evidence schema')

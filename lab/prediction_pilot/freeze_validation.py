@@ -9,7 +9,8 @@ from pilot.protocol import save_json
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--root',type=Path,required=True);p.add_argument('--nas',type=Path,required=True);a=p.parse_args()
-    root=a.root;data=json.loads((root/'exploration-complete.json').read_text());protocol=json.loads((root/'protocol.json').read_text())
+    root=a.root;data=json.loads((root/'exploration-complete.json').read_text())
+    protocol=json.loads((root/('effective-protocol.json' if (root/'effective-protocol.json').exists() else 'protocol.json')).read_text())
     if any((root/'instances'/uid).exists() for uid,kind in protocol['roots']['validation']):raise RuntimeError('Validation already started')
     if (root/'frozen-validation.json').exists():raise RuntimeError('Already frozen')
     totals={s['family']:[0,0] for s in SPECS}

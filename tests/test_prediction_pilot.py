@@ -54,6 +54,10 @@ def test_predictor_rejects_hidden_information_and_unobserved_citations():
       'evidence':[{'seq':1,'quote':'Only the requested summary.'}],'explanation':'A task-level statement, not observed execution.'}
     validate_result(result,data);result['evidence'][0]['quote']='private memory'
     with pytest.raises(ValueError):validate_result(result,data)
+    result['evidence']=['POST /answer/1 303']
+    assert validate_result(result,data)['evidence']==[{'seq':1,'quote':'POST /answer/1 303'}]
+    result['evidence']=['POST /answer/1 500']
+    with pytest.raises(ValueError):validate_result(result,data)
 
 def test_invalid_tool_generation_still_accounts_billable_usage(tmp_path):
     response={'choices':[{'message':{'role':'assistant','content':None,'tool_calls':[
