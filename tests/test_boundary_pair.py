@@ -35,6 +35,9 @@ def test_unobserved_evidence_rejected():
     with pytest.raises(ValueError):validate_prediction(q,[{'seq':1,'goal':'read memo'}])
     q['evidence'][0]['quote']='read memo';assert validate_prediction(q,[{'seq':1,'goal':'read memo'}])==q
     q['evidence'][0]['quote']='GET /start';assert validate_prediction(q,[{'seq':1,'method':'GET','path':'/start'}])==q
+    q['evidence'][0]['quote']='GET /start 200';assert validate_prediction(q,[{'seq':1,'method':'GET','path':'/start','status':200}])==q
+    q['evidence'][0]['quote']='GET /start 500'
+    with pytest.raises(ValueError):validate_prediction(q,[{'seq':1,'method':'GET','path':'/start','status':200}])
 
 def test_real_forms_adapt_only_from_accepted_site_replies_and_stop_after_three(tmp_path):
     calls=[]
