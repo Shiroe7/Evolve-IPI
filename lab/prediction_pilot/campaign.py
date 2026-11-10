@@ -196,7 +196,8 @@ class Campaign:
             for condition in order:
                 directory,_=self.stage(uid,'website',phase,condition=condition)
                 observations[uid][condition]=self.predict_website(uid,condition,directory,priors)
-        save_json(self.root/(phase+'-predictions-sealed.json'),{'at_unix':time.time(),'predictions':observations,'orders':orders,'base_rates':priors})
+        from .sealing import seal_predictions
+        seal_predictions(self.root/(phase+'-predictions-sealed.json'),observations,orders,priors)
         outcomes={}
         for unit in units:
             uid=unit['uid'];risks=[];utilities=[]
