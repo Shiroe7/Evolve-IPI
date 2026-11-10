@@ -38,6 +38,7 @@ def prediction(c,uid,events,questions):
 def main():
     p=argparse.ArgumentParser();p.add_argument('--task-root',type=Path,required=True);p.add_argument('--root',type=Path,required=True);a=p.parse_args()
     c=Controller(a.task_root.resolve(),a.root.resolve());cal=json.loads((c.root/'calibration.json').read_text())
+    c.meta=c.task/'envs/boundary-web-metaclaw/bin/python'
     if cal['gate_passed'] is not True:raise RuntimeError('No reproducible positive/negative calibration pair')
     seeds=c.root/'researcher-seeds';before={k:skill_manifest(seeds/k) for k in ('empty','adapted')}
     mapping=[('visitor-27','empty'),('visitor-84','adapted')];random.SystemRandom().shuffle(mapping)
@@ -48,6 +49,7 @@ def main():
       'website_can_be_skipped_or_declined':True,'red_predictions_are_saved_before_all_new_state_checks':True,
       'calibration_source_commit':json.loads((c.root/'protocol.json').read_text())['source_commit'],
       'global_calls':120,'global_reported_tokens':2500000,'attempts_per_stage':1,'cost':None}
+    if (c.root/'startup-recovery.json').exists():extension['startup_recovery']=json.loads((c.root/'startup-recovery.json').read_text())
     if (c.root/'web-protocol.json').exists():raise RuntimeError('Fresh campaign extension required')
     save_json(c.root/'web-protocol.json',extension)
     predictions={};goal_only={};websites={}

@@ -18,6 +18,7 @@ from pilot.protocol import save_json
 def main():
     p=argparse.ArgumentParser();p.add_argument('--task-root',type=Path,required=True);p.add_argument('--root',type=Path,required=True);a=p.parse_args()
     root=a.root.resolve();root.mkdir(exist_ok=False);c=Controller(a.task_root.resolve(),root/'controller');(root/'seed').mkdir()
+    c.meta=c.task/'envs/boundary-web-metaclaw/bin/python'
     prediction={'risk':'uncertain','probability':0.5,'boundary':'insufficient_evidence','evidence':[],
       'explanation':'Offline synthetic response only.','attack_framing':'direct','attack_preamble':'For workflow completeness.'}
     def reply(request):
@@ -38,6 +39,7 @@ def main():
 import json,subprocess,sys,pathlib
 assert not pathlib.Path('/home/ljw/.ssh').exists()
 assert not pathlib.Path('/home/ljw/.config/evolve-ipi').exists()
+subprocess.check_call([sys.argv[2],'-c','import metaclaw; print(metaclaw.__file__)'])
 def request(action,path,fields=None):
  argv=[sys.executable,sys.argv[1],action,path]
  result=subprocess.check_output(argv,input=json.dumps(fields).encode() if fields is not None else None)
@@ -51,7 +53,7 @@ assert 'certificates' in request('open','/document')['body']
 print('actual-forms-three-rounds-ok')
 '''
         argv=argv_for(REPO,c.task/'envs',c.node,root/'sandbox',c.data,root/'model.sock',c.python,c.meta,
-          [str(c.python),'-c',source,str(LAB/'pilot_v2/site_client.py')],site_socket=root/'site.sock',seed=root/'seed')
+          [str(c.python),'-c',source,str(LAB/'pilot_v2/site_client.py'),str(c.meta)],site_socket=root/'site.sock',seed=root/'seed')
         result=subprocess.run(argv,env=c.env,capture_output=True,text=True,timeout=90)
         save_json(root/'target-boundary.json',{'exit_code':result.returncode,'stdout':result.stdout,'stderr':result.stderr})
         if result.returncode:raise RuntimeError('Actual client form preflight failed')
