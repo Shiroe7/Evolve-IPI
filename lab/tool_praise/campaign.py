@@ -13,13 +13,16 @@ from pathlib import Path
 
 LAB=Path(__file__).resolve().parents[1];REPO=LAB.parent;sys.path.insert(0,str(LAB))
 from prediction_pilot.protocol import plan,sha,canonical,CONDITIONS,TASKS,SPECS,CAPS,GLOBAL_CALLS,GLOBAL_TOKENS,FORMS,WELCOME
-from tool_praise.protocol import PLAN,GROUPS,RISK,UTILITY
+from tool_praise.protocol import PLAN,GROUPS,RISK,UTILITY,clean_history_fixture
 def plan():return dict(PLAN)
-GLOBAL_CALLS=650
-GLOBAL_TOKENS=12000000
+GLOBAL_CALLS=600
+GLOBAL_TOKENS=10000000
 from prediction_pilot.blind import predict
 from prediction_pilot.predictor import validate_input
-from prediction_pilot.attestation import build as build_fixture
+from prediction_pilot.attestation import build as original_build_fixture
+def build_fixture(data,stage,phase,item=None):
+    fixture=original_build_fixture(data,stage,phase,item)
+    return clean_history_fixture(fixture) if stage=='history' else fixture
 from pilot.protocol import save_json,skill_manifest
 from pilot.campaign import wait_socket,stop
 from isolate import argv_for
