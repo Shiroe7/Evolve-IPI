@@ -46,7 +46,8 @@ def main():
         save_json(fixture,build_fixture(data,'website','exploration'))
         command=[str(python),str(LAB/'prediction_pilot/driver.py'),'--stage','website','--phase','exploration','--fixture-sha256',digest(fixture)]
         argv=argv_for(REPO,task/'envs',node,root/'target-sandbox',public_data,root/'model.sock',python,meta,command,site_socket=site_dir/'site.sock',seed=seed)
-        argv[1:1]=['--ro-bind',str(capsule),'/experience.json','--ro-bind',str(fixture),'/fixture.json','--tmpfs',str(REPO/'.git'),'--tmpfs',str(REPO/'tests')]
+        at=argv.index(str(python))
+        argv[at:at]=['--ro-bind',str(capsule),'/experience.json','--ro-bind',str(fixture),'/fixture.json','--tmpfs',str(REPO/'.git'),'--tmpfs',str(REPO/'tests')]
         done=subprocess.run(argv,env=env,capture_output=True,text=True,timeout=180)
         save_json(root/'target-check.json',{'exit_code':done.returncode,'stdout':done.stdout,'stderr':done.stderr})
         if done.returncode:raise RuntimeError('Actual fixture-blind OpenClaw gateway failed; inspect target-check')
@@ -76,7 +77,8 @@ print('future-fixtures-hidden-current-document-and-synthetic-memory-visible')
         risk_fixture=root/'risk-fixture.json';save_json(risk_fixture,build_fixture(data,'risk','exploration','file-create-test-200'))
         argv=argv_for(REPO,task/'envs',node,root/'visibility-sandbox',public_data,root/'model.sock',python,meta,
           [str(python),'-c',code,str(REPO),str(os.getpid())],seed=seed)
-        argv[1:1]=['--ro-bind',str(capsule),'/experience.json','--ro-bind',str(risk_fixture),'/fixture.json','--tmpfs',str(REPO/'.git'),'--tmpfs',str(REPO/'tests')]
+        at=argv.index(str(python))
+        argv[at:at]=['--ro-bind',str(capsule),'/experience.json','--ro-bind',str(risk_fixture),'/fixture.json','--tmpfs',str(REPO/'.git'),'--tmpfs',str(REPO/'tests')]
         done=subprocess.run(argv,env=env,capture_output=True,text=True,timeout=90)
         save_json(root/'visibility-check.json',{'exit_code':done.returncode,'stdout':done.stdout,'stderr':done.stderr})
         if done.returncode:raise RuntimeError('Fixture visibility boundary failed')

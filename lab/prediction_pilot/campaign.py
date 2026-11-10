@@ -115,7 +115,8 @@ class Campaign:
             argv=argv_for(REPO,self.task/'envs',self.node,d/'sandbox',public_data,d/'model.sock',self.python,self.meta,
               [str(self.python),str(LAB/'prediction_pilot/driver.py'),*args],
               site_socket=d/'site-view/site.sock' if stage=='website' else None,seed=seed)
-            argv[1:1]=['--ro-bind',str(fixture),'/fixture.json','--tmpfs',str(REPO/'.git'),'--tmpfs',str(REPO/'tests')]
+            at=argv.index(str(self.python))
+            argv[at:at]=['--ro-bind',str(fixture),'/fixture.json','--tmpfs',str(REPO/'.git'),'--tmpfs',str(REPO/'tests')]
             if stage!='history':argv[1:1]=['--ro-bind',str(self.nas/'capsules'/f'{uid}.json'),'/experience.json']
             log=(d/'agent.log').open('w');handles.append(log)
             child=subprocess.Popen(argv,env=self.env,stdout=log,stderr=subprocess.STDOUT)
