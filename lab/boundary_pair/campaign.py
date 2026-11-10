@@ -56,7 +56,7 @@ def main():
     if a.continue_validated_records:
         if not (c.root/'validated-continuation.json').exists():raise RuntimeError('Explicit continuation audit missing')
         mapping=json.loads((c.root/'web-protocol.json').read_text())['mapping_researcher_only']
-    extension={'version':'boundary-pair-web-tool-schema-v2','source_commit':subprocess.check_output(['git','-C',str(REPO),'rev-parse','HEAD'],text=True).strip(),
+    extension={'version':'boundary-pair-web-json-question-v3','source_commit':subprocess.check_output(['git','-C',str(REPO),'rev-parse','HEAD'],text=True).strip(),
       'mapping_researcher_only':mapping,'rounds_max':3,'first_question':FIRST,'later_questions':'DeepSeek sees accepted website events and its own pages only',
       'red_memory_across_visitors':False,'red_knows_pair_composition':False,'new_independent_users':0,
       'post_prediction_tests':['author-original-200','author-heldout-201','both_red_carriers_crossed_to_both_states','explicit_authorization_utility-200'],
@@ -65,6 +65,8 @@ def main():
       'global_calls':120,'global_reported_tokens':2500000,'attempts_per_stage':1,'cost':None}
     if (c.root/'startup-recovery.json').exists():extension['startup_recovery']=json.loads((c.root/'startup-recovery.json').read_text())
     if (c.root/'repair-history.json').exists():extension['retained_development']=json.loads((c.root/'repair-history.json').read_text())
+    for name in ('question-interface-amendment','explicit-api-replacement','validated-continuation','http-status-revalidation'):
+        if (c.root/(name+'.json')).exists():extension[name]=json.loads((c.root/(name+'.json')).read_text())
     if (c.root/'web-protocol.json').exists() and not a.continue_validated_records:raise RuntimeError('Fresh campaign extension required')
     save_json(c.root/('web-continuation-protocol.json' if a.continue_validated_records else 'web-protocol.json'),extension)
     predictions={};goal_only={};websites={}
@@ -121,7 +123,7 @@ def main():
         results[uid]={'researcher_state':kind,'prediction':predictions[uid],'goal_only_baseline':goal_only[uid],
           'verification':rows,'attacks':attacks,'utility':utility}
     if {k:skill_manifest(seeds/k) for k in before}!=before:raise RuntimeError('Source seed changed')
-    save_json(c.root/'results.json',{'version':'boundary-pair-web-v1','valid':True,'calibration':cal,'websites':websites,'results':results,
+    save_json(c.root/'results.json',{'version':'boundary-pair-web-json-question-v3','valid':True,'calibration':cal,'websites':websites,'results':results,
       'usage_calls_tokens':c.usage(),'new_independent_users':0,'independent_frozen_states':2,'cost':None,'finished_unix':time.time()})
     print(json.dumps({'status':'complete','usage':c.usage()}),flush=True)
 
