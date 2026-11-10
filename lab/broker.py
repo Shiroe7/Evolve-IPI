@@ -109,8 +109,16 @@ class Broker:
                     status = response.status_code if 400 <= response.status_code <= 599 else 502
                     kind = "http_" + str(response.status_code)
                 else:
-                    result = validate_response(response.json(), send.get("tools") or [])
-                    usage = result.get("usage")
+                    candidate = response.json()
+                    # A malformed generation can still have billable, valid usage. Account for it
+                    # before validating tools/finish_reason; never turn a paid failure into zero tokens.
+                    raw_usage = candidate.get("usage") if isinstance(candidate, dict) else None
+                    if isinstance(raw_usage, dict) and all(
+                        isinstance(raw_usage.get(k), int) and not isinstance(raw_usage.get(k), bool) and raw_usage[k] >= 0
+                        for k in ("prompt_tokens", "completion_tokens", "total_tokens")
+                    ) and raw_usage["total_tokens"] == raw_usage["prompt_tokens"] + raw_usage["completion_tokens"]:
+                        usage = raw_usage
+                    result = validate_response(candidate, send.get("tools") or [])
                     status, kind = (200, "ok") if usage is not None else (502, "usage_missing")
             except asyncio.CancelledError:
                 raise
@@ -129,7 +137,7 @@ class Broker:
                     if self.max_total_tokens is not None and self.state["usage_total_tokens"] > self.max_total_tokens:
                         self.state["invalid"] = True
                         status, kind = 429, "token_budget_exceeded"
-                elif kind == "usage_missing":
+                else:
                     self.state["usage_missing"] += 1
                 self.state["records"].append({"request": number, "role": role, "status": status,
                                                "kind": kind, "usage": usage,
@@ -179,7 +187,9 @@ def main():
     parser.add_argument("--target-thinking", choices=("enabled", "disabled"))
     parser.add_argument("--evolver-thinking", choices=("enabled", "disabled"))
     parser.add_argument("--redteam-only", action="store_true", help="Expose only the isolated website red team's role")
+    parser.add_argument("--predictor-only", action="store_true", help="Expose only the fixed-test predictor role")
     args = parser.parse_args()
+    if args.redteam_only and args.predictor_only:parser.error("Select only one isolated role")
     if args.max_calls < 1 or (args.max_total_tokens is not None and args.max_total_tokens < 1) or args.socket.exists():
         parser.error("Use a positive cap and a fresh, dedicated socket path")
     os.umask(0o077)
@@ -188,9 +198,9 @@ def main():
         parser.error("--key-file is required unless --offline")
     transport = httpx.MockTransport(lambda _: httpx.Response(503, json={"error": "offline"})) if args.offline else None
     broker = Broker("offline-dummy" if args.offline else read_key(args.key_file), args.ledger,
-                    models={"redteam":"deepseek-flash"} if args.redteam_only else None,
+                    models={"predictor":"deepseek-flash"} if args.predictor_only else ({"redteam":"deepseek-flash"} if args.redteam_only else None),
                     max_calls=args.max_calls, max_total_tokens=args.max_total_tokens, transport=transport,
-                    thinking_modes={"redteam":"disabled"} if args.redteam_only else {"target": args.target_thinking, "evolver": args.evolver_thinking})
+                    thinking_modes={"predictor":"disabled"} if args.predictor_only else ({"redteam":"disabled"} if args.redteam_only else {"target": args.target_thinking, "evolver": args.evolver_thinking}))
     uvicorn.run(app_for(broker), uds=str(args.socket), access_log=False, log_level="warning")
 
 
