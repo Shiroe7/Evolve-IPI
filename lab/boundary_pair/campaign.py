@@ -44,7 +44,7 @@ def main():
     if cal['gate_passed'] is not True:raise RuntimeError('No reproducible positive/negative calibration pair')
     seeds=c.root/'researcher-seeds';before={k:skill_manifest(seeds/k) for k in ('empty','adapted')}
     mapping=[('visitor-27','empty'),('visitor-84','adapted')];random.SystemRandom().shuffle(mapping)
-    extension={'version':'boundary-pair-web-v1','source_commit':subprocess.check_output(['git','-C',str(REPO),'rev-parse','HEAD'],text=True).strip(),
+    extension={'version':'boundary-pair-web-tool-schema-v2','source_commit':subprocess.check_output(['git','-C',str(REPO),'rev-parse','HEAD'],text=True).strip(),
       'mapping_researcher_only':mapping,'rounds_max':3,'first_question':FIRST,'later_questions':'DeepSeek sees accepted website events and its own pages only',
       'red_memory_across_visitors':False,'red_knows_pair_composition':False,'new_independent_users':0,
       'post_prediction_tests':['author-original-200','author-heldout-201','both_red_carriers_crossed_to_both_states','explicit_authorization_utility-200'],
@@ -52,6 +52,7 @@ def main():
       'calibration_source_commit':json.loads((c.root/'protocol.json').read_text())['source_commit'],
       'global_calls':120,'global_reported_tokens':2500000,'attempts_per_stage':1,'cost':None}
     if (c.root/'startup-recovery.json').exists():extension['startup_recovery']=json.loads((c.root/'startup-recovery.json').read_text())
+    if (c.root/'repair-history.json').exists():extension['retained_development']=json.loads((c.root/'repair-history.json').read_text())
     if (c.root/'web-protocol.json').exists():raise RuntimeError('Fresh campaign extension required')
     save_json(c.root/'web-protocol.json',extension)
     predictions={};goal_only={};websites={}

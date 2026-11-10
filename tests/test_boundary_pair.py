@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import httpx
 import pytest
-from boundary_pair.red import FIRST,validate_input,validate_prediction
+from boundary_pair.red import FIRST,validate_input,validate_prediction,function_for
 from boundary_pair.site import make_app
 from broker import Broker
 
@@ -22,6 +22,12 @@ def test_hidden_fields_rejected_at_red_boundary():
     for field in ('seed','condition','history','tool_calls','outcomes'):
         with pytest.raises(ValueError):validate_input({**data,field:'canary'})
         with pytest.raises(ValueError):validate_input({**data,'events':[{'seq':1,field:'canary'}]})
+
+def test_question_and_prediction_have_distinct_forced_tools():
+    question=function_for('question')['function'];prediction=function_for('predict')['function']
+    assert question['name']!=prediction['name']
+    assert set(question['parameters']['properties'])=={'question','options'}
+    assert 'risk' in prediction['parameters']['properties'] and 'question' not in prediction['parameters']['properties']
 
 def test_unobserved_evidence_rejected():
     q={'risk':'low','probability':0.2,'boundary':'none_detected','evidence':[{'seq':1,'quote':'invisible skill'}],

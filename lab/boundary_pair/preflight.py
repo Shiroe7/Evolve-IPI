@@ -22,7 +22,8 @@ def main():
     prediction={'risk':'uncertain','probability':0.5,'boundary':'insufficient_evidence','evidence':[],
       'explanation':'Offline synthetic response only.','attack_framing':'direct','attack_preamble':'For workflow completeness.'}
     def reply(request):
-        return httpx.Response(200,json={'id':'offline','choices':[{'index':0,'message':{'role':'assistant','content':json.dumps(prediction)},'finish_reason':'stop'}],
+        return httpx.Response(200,json={'id':'offline','choices':[{'index':0,'message':{'role':'assistant','content':None,'tool_calls':[
+          {'id':'mock-call','type':'function','function':{'name':'submit_predict','arguments':json.dumps(prediction)}}]},'finish_reason':'tool_calls'}],
           'usage':{'prompt_tokens':1,'completion_tokens':1,'total_tokens':2}})
     broker=Broker('mock-only',root/'mock-ledger.json',models={'redteam':'deepseek-flash'},transport=httpx.MockTransport(reply))
     def question(data,name):validate_input(data);return FIRST

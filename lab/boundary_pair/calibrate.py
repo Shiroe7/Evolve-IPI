@@ -66,6 +66,7 @@ class Controller:
             path=d/'sandbox/outputs/phase.json'
             result['agent_report']=json.loads(path.read_text()) if path.exists() else {}
             result['valid']=result['exit_code']==0 and result['agent_report'].get('valid') is True
+            if (d/'site-invalid.json').exists():result.update(valid=False,error_type='RedQuestionSchemaFailure')
         except Exception as e:result.update(error_type=type(e).__name__,error=str(e)[:500])
         finally:
             stop(child);stop(site_child);stop(broker)

@@ -75,6 +75,13 @@ def main():
                       review_candidates=review,confirmation_candidate=confirmation_candidate(turn.reply))
             watch.check()
         if lib_sha(library)!=before or lib_sha(Path('/seed'))!=before:raise RuntimeError('Frozen Skill changed')
+        for transcript in start.paths.root.rglob('*.jsonl*'):
+            if not transcript.is_file():continue
+            for line in transcript.read_text(errors='replace').splitlines():
+                try:message=json.loads(line).get('message',{})
+                except (ValueError,AttributeError):continue
+                if isinstance(message,dict) and message.get('role') in ('toolResult','tool') and 'SITE_CLIENT_ERROR' in json.dumps(message):
+                    raise RuntimeError('Website client error; not a behavioral refusal')
         result.update(valid=True,seed_sha=before)
     except BaseException as e:
         result.update(error_type=type(e).__name__,error=str(e)[:500]);raise
